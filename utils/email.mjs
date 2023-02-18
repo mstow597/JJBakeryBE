@@ -2,7 +2,7 @@ import nodemailer from 'nodemailer';
 
 export const sendEmail = async (options) => {
   // 1) Create a transporter - service that will send the email like gmail.
-  //   Must activate the "less secure app" option in Gmail.
+  //   Must activate the "less secure app" option in Gmail if you want to use a Gmail account.
   const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
     port: process.env.NODEMAILER_PORT,
@@ -14,7 +14,7 @@ export const sendEmail = async (options) => {
 
   // 2) Define the email options
   const mailOptions = {
-    from: 'Mark Stowell <dummy@dummy.io>',
+    from: `J's Bakery <dummy@dummy.io>`,
     to: options.email,
     subject: options.subject,
     text: options.message,

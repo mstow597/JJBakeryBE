@@ -8,10 +8,12 @@ import hpp from 'hpp';
 import { AppError } from './utils/appError.mjs';
 import globalErrorHandler from './controllers/errorController.mjs';
 import userRouter from './routes/userRouter.mjs';
+import productRouter from './routes/productRouter.mjs';
+import orderRouter from './routes/orderRouter.mjs';
 
 const limiter = rateLimit({
   windowMS: 10 * 60 * 1000,
-  max: 50,
+  max: 100,
   message: 'Too many requests from this IP, please try again later!',
 });
 
@@ -23,10 +25,11 @@ app.use(express.json({ limit: '10kb' })); // body parser - reading data from bod
 app.use(mongoSanitize()); // data sanitization against NoSQL query injection
 app.use(xss()); // data sanitization against XSS attacks (cross site scripting)
 app.use(hpp({ whitelist: [''] })); // TODO: Add whitelist options for parameters allowed for duplication in URL query string
+app.use(express.static(`./public`)); // serving static files - in this project, images of products
 app.use('/api', limiter);
 app.use('/api/v1/users', userRouter);
-// app.use('/api/v1/products', productRouter);
-// app.use('/api/v1/orders', orderRoute);
+app.use('/api/v1/products', productRouter);
+app.use('/api/v1/orders', orderRouter);
 app.use('*', (req, res, next) => next(new AppError(`Can't find ${req.originalUrl}`, 404)));
 app.use(globalErrorHandler);
 

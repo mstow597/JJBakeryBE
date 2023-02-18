@@ -3,10 +3,11 @@ import crypto from 'crypto';
 import { catchAsync } from '../utils/catchAsync.mjs';
 import { User } from '../models/userModel.mjs';
 import { sendEmail } from '../utils/email.mjs';
+import { AppError } from '../utils/appError.mjs';
 
 export const restrictTo = (...roles) => {
   return (req, res, next) => {
-    // roles is an array... example: ['admin', 'guide']
+    // roles is an array... example: ['admin', 'user']
     if (!roles.includes(req.user.role))
       return next(new AppError('You do not have permission to perform this action.', 403));
     next();
@@ -60,16 +61,97 @@ const signToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN });
 };
 
+// TODO: send email verification on signup - do not send
 export const signup = catchAsync(async (req, res, next) => {
-  const newUser = await User.create({
+  const user = await User.create({
     name: req.body.name,
     email: req.body.email,
+    emailConfirm: req.body.emailConfirm,
     phone: req.body.phone,
     password: req.body.password,
     passwordConfirm: req.body.passwordConfirm,
   });
 
-  createSendToken(newUser, 201, res);
+  const verificationToken = user.createEmailVerificationToken();
+  await user.save({ validateBeforeSave: false });
+
+  const resetURL = `${req.protocol}://${req.get('host')}/api/v1/users/verifyEmail/${verificationToken}`;
+  const message = `To verify your email, please click the link below to submit a GET request to the following URL: ${resetURL}. If you did not sign up for an account, please ignore this email.`;
+
+  try {
+    await sendEmail({
+      email: user.email,
+      subject: 'Your password reset token (valid for 10 minutes).',
+      message,
+    });
+  } catch (err) {
+    user.verificationToken = undefined;
+    user.verificationTokenExpires = undefined;
+    await user.save({ validateBeforeSave: false });
+
+    return next(
+      new AppError(
+        'There was an error sending the email verification. Please retry a POST request at {{URL}}/api/v1/users/verifyEmail with email in body.'
+      )
+    );
+  }
+
+  res.status(201).json({
+    status: 'success',
+    data: {
+      name: user.name,
+      email: user.email,
+      message: `${user.name}, you're account was successfully created. Prior to accessing you account, you must verify your email address with the link provided in a message sent to your email address: ${user.email}.`,
+    },
+  });
+});
+
+export const sendEmailVerification = catchAsync(async (req, res, next) => {
+  const user = await User.findOne({ email: req.body.email });
+  if (!user) res.status(200).json({ status: 'success', message: 'Token sent to email!' }); // protection from account sniffing
+
+  const verificationToken = user.createEmailVerificationToken();
+  await user.save({ validateBeforeSave: false });
+
+  const resetURL = `${req.protocol}://${req.get('host')}/api/v1/users/verifyEmail/${verificationToken}`;
+  const message = `To verify your email, please click the link below to submit a GET request to the following URL: ${resetURL}. If you did not sign up for an account, please ignore this email.`;
+
+  try {
+    await sendEmail({
+      email: user.email,
+      subject: 'Your password reset token (valid for 10 minutes).',
+      message,
+    });
+  } catch (err) {
+    user.verificationToken = undefined;
+    user.verificationTokenExpires = undefined;
+    await user.save({ validateBeforeSave: false });
+
+    return next(
+      new AppError(
+        'There was an error sending the email verification. Please retry a POST request at {{URL}}/api/v1/users/verifyEmail with email in body.'
+      )
+    );
+  }
+});
+
+export const verifyEmail = catchAsync(async (req, res, next) => {
+  const hashedToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
+  const user = await User.findOne({
+    emailVerificationToken: hashedToken,
+    emailVerificationTokenExpires: { $gt: Date.now() },
+  });
+  if (!user) return next(new AppError('Verification token invalid or has expired', 400));
+
+  user.verified = true;
+  user.emailVerificationToken = undefined;
+  user.emailVerificationTokenExpires = undefined;
+  await user.save();
+
+  res.status(200).json({
+    status: 'success',
+    message: 'Successfully verified email. You may now log in and begin using your account.',
+  });
 });
 
 export const login = catchAsync(async (req, res, next) => {
@@ -79,8 +161,10 @@ export const login = catchAsync(async (req, res, next) => {
 
   // Check if user exists and if password is correct
   const user = await User.findOne({ email }).select('+password');
-  if (!user || !(await user.correctPassword(password, user.password)))
-    return next(new AppError('Incorrect email or password', 401));
+  if (!user || !user.verified || !(await user.correctPassword(password, user.password)))
+    return next(
+      new AppError('Incorrect email or password, or email not verified (must be verified to access account).', 401)
+    );
 
   // If everything checks out, send jwt to client.
   createSendToken(user, 200, res);
@@ -89,7 +173,7 @@ export const login = catchAsync(async (req, res, next) => {
 export const forgotPassword = catchAsync(async (req, res, next) => {
   // 1) Get user based on POSTed email
   const user = await User.findOne({ email: req.body.email });
-  if (!user) return next(new AppError('Token sent to email!', 404)); // faking success to prevent account sniffing.
+  if (!user) return res.status(200).json({ status: 'success', message: 'Token sent to email!' }); // faking success to prevent account sniffing.
 
   // 2) Generate the random token
   const resetToken = user.createPasswordResetToken();
@@ -119,7 +203,7 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
 export const resetPassword = catchAsync(async (req, res, next) => {
   // 1) Get user based on the token
   const hashedToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
-  const user = await User.findOne({ token: hashedToken, passwordResetExpires: { $gt: Date.now() } });
+  const user = await User.findOne({ passwordResetToken: hashedToken, passwordResetExpires: { $gt: Date.now() } });
 
   // 2) If token has not expired and user exists, set new password
   if (!user) return next(new AppError('Token is invalid or has expired.', 400));
@@ -131,8 +215,8 @@ export const resetPassword = catchAsync(async (req, res, next) => {
 
   // 3) Update changedPasswordAt property for user - pre middleware in userModel.mjs
 
-  // 4) Log the user in, send JWT to client
-  createSendToken(user, 200, res);
+  // 4) Everything checks out, success message - not sending back JWT as user account might not be verified.
+  res.status(200).json({ status: 'success', message: 'Password successfully reset.' });
 });
 
 export const updatePassword = catchAsync(async (req, res, next) => {
