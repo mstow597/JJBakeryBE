@@ -1,3 +1,5 @@
+import path from 'path';
+import * as url from 'url';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { catchAsync } from '../utils/catchAsync.mjs';
@@ -5,6 +7,16 @@ import { User } from '../models/userModel.mjs';
 import { sendEmail } from '../utils/email.mjs';
 import { AppError } from '../utils/appError.mjs';
 
+const __fileName = url.fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__fileName);
+
+/**
+ *
+ * @param  {...any} roles Accepts an array of string arguments where each argument is a role defined in the User schema
+ * @description Returns Express route middleware function to limit a route to a particular role (admin or user). This middleware should be placed before other middleware functions.
+ * @returns middleware function (express)
+ *
+ */
 export const restrictTo = (...roles) => {
   return (req, res, next) => {
     // roles is an array... example: ['admin', 'user']
@@ -14,6 +26,18 @@ export const restrictTo = (...roles) => {
   };
 };
 
+/**
+ * @param req Express middleware request object
+ * @param res Express middleware response object
+ * @param next Express middleware next object
+ * @description
+ * - Retrieves the JavaScript Web Token (JWT) from req.headers.authorization.
+ * - Verifies the jwt signature (match + not expired), decoding and extracting the User Id
+ * - Query database using User Id obtained in step 2 to find the user.
+ * - Checks if password changed after the JWT token was issued.
+ * - If successfully meets all requirements, set req.user to the queried user in step 3.
+ * @returns undefined (Note: call is made to next() pass handle to next middleware function in line)
+ */
 export const protect = catchAsync(async (req, res, next) => {
   // 1) Getting token and check if it exists
   let token;
@@ -43,6 +67,10 @@ export const protect = catchAsync(async (req, res, next) => {
   next();
 });
 
+const signToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN });
+};
+
 const createSendToken = (user, statusCode, res) => {
   const token = signToken(user._id);
   const cookieOptions = {
@@ -57,11 +85,6 @@ const createSendToken = (user, statusCode, res) => {
   res.status(201).json({ status: statusCode, data: { user: user, token } });
 };
 
-const signToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN });
-};
-
-// TODO: send email verification on signup - do not send
 export const signup = catchAsync(async (req, res, next) => {
   const user = await User.create({
     name: req.body.name,
@@ -75,19 +98,21 @@ export const signup = catchAsync(async (req, res, next) => {
   const verificationToken = user.createEmailVerificationToken();
   await user.save({ validateBeforeSave: false });
 
-  const resetURL = `${req.protocol}://${req.get('host')}/api/v1/users/verifyEmail/${verificationToken}`;
-  const message = `To verify your email, please click the link below to submit a GET request to the following URL: ${resetURL}. If you did not sign up for an account, please ignore this email.`;
+  const verifyURL = `${req.protocol}://${req.get('host')}/api/v1/users/verifyEmail/${verificationToken}`;
+  const message = `To verify your email, please copy and paste the following URL into your browser: ${verifyURL}. If you did not sign up for an account, please ignore this email.`;
+  const html = `<h2>Verify Your Email<h2><p>To verify your email please click the link below:</p><br /><a href="${verifyURL}">Verify Email</a>`;
 
   try {
     await sendEmail({
       email: user.email,
       subject: 'Your password reset token (valid for 10 minutes).',
       message,
+      html,
     });
   } catch (err) {
     user.verificationToken = undefined;
     user.verificationTokenExpires = undefined;
-    await user.save({ validateBeforeSave: false });
+    await user.save();
 
     return next(
       new AppError(
@@ -113,19 +138,21 @@ export const sendEmailVerification = catchAsync(async (req, res, next) => {
   const verificationToken = user.createEmailVerificationToken();
   await user.save({ validateBeforeSave: false });
 
-  const resetURL = `${req.protocol}://${req.get('host')}/api/v1/users/verifyEmail/${verificationToken}`;
-  const message = `To verify your email, please click the link below to submit a GET request to the following URL: ${resetURL}. If you did not sign up for an account, please ignore this email.`;
+  const verifyURL = `${req.protocol}://${req.get('host')}/api/v1/users/verifyEmail/${verificationToken}`;
+  const message = `To verify your email, please click the link below to submit a GET request to the following URL: ${verifyURL}. If you did not sign up for an account, please ignore this email.`;
+  const html = `<h2>Verify Your Email<h2><p>To verify your email please click the link below:</p><br /><a href="${verifyURL}">Verify Email</a>`;
 
   try {
     await sendEmail({
       email: user.email,
       subject: 'Your password reset token (valid for 10 minutes).',
       message,
+      html,
     });
   } catch (err) {
     user.verificationToken = undefined;
     user.verificationTokenExpires = undefined;
-    await user.save({ validateBeforeSave: false });
+    await user.save();
 
     return next(
       new AppError(
@@ -146,12 +173,9 @@ export const verifyEmail = catchAsync(async (req, res, next) => {
   user.verified = true;
   user.emailVerificationToken = undefined;
   user.emailVerificationTokenExpires = undefined;
-  await user.save();
+  await user.save({ validateBeforeSave: false });
 
-  res.status(200).json({
-    status: 'success',
-    message: 'Successfully verified email. You may now log in and begin using your account.',
-  });
+  res.status(200).sendFile(path.join(__dirname, '../private/html/emailVerified.html'));
 });
 
 export const login = catchAsync(async (req, res, next) => {

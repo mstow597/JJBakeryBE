@@ -8,8 +8,8 @@ const router = express.Router();
 router.route('/signup').post(signup);
 router.route('/forgotPassword');
 router.route('/resetPassword/:token');
-router.route('/verifyEmail', sendEmailVerification);
-router.route('/verifyEmail/:token').post(verifyEmail);
+router.route('/verifyEmail').post(sendEmailVerification);
+router.route('/verifyEmail/:token').get(verifyEmail);
 
 // Protected routes - accessible only by users, own profile only.
 router.use(protect, restrictTo('user'));
@@ -17,7 +17,7 @@ router.route('/getMe');
 router.route('/updateMe');
 router.route('/deleteMe');
 
-router.use(restrictTo('admin'));
+router.use(protect, restrictTo('admin'));
 router.route('/').get(getAllUsers);
 router.route('/:id').get(getUser);
 router.route('/update/:id', updateUser);

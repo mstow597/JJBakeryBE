@@ -34,20 +34,25 @@ export const getUser = catchAsync(async (req, res, next) => {
 });
 
 export const updateUser = catchAsync(async (req, res, next) => {
-  if (req.body.password || req.body.passwordConfirm)
+  // Not allowing admin to update user password
+  if (req.body.password || req.body.passwordConfirm) {
     return next(
       new AppError(
         'Not authorized to update user password. To reset password, user must initiate password reset POST request through /resetPassword (if user forgot password) or /updatePassword (if user logged in and wants to change password) route.'
       ),
       404
     );
-  if (req.body.email || req.body.emailConfirm)
+  }
+
+  // Not allowing admin to update email
+  if (req.body.email || req.body.emailConfirm) {
     return next(
       new AppError(
-        'Not authorized to update user email. If user is logged in and wishes to update email, have user use /updateEmail route. If user forgot forgot email or lost access to email address, please contact database administrator for support.'
+        'Not authorized to update user email. If user is logged in and wishes to update email, have user use /updateEmail route. If user forgot email or lost access to email address, please contact database administrator for support.'
       ),
       404
     );
+  }
 
   const user = await User.findOneAndUpdate(req.params.id, filterObj(req.body, 'name', 'phone', 'active'), {
     new: true,

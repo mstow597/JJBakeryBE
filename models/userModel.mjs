@@ -7,7 +7,7 @@ const userSchema = new mongoose.Schema({
   name: {
     type: String,
     trim: true,
-    required: true,
+    required: [true, 'User must have a name.'],
     validate: {
       validator: function (value) {
         return validator.isAlpha(value.replace(/\s/g, ''));
@@ -16,13 +16,13 @@ const userSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    required: [true, 'Please enter your email address'],
+    required: [true, 'User must have email address'],
     unique: true,
-    validate: [validator.isEmail, 'Please provide a valid email'],
+    validate: [validator.isEmail, 'Email is invalid. Please provide a valid email address'],
   },
   emailConfirm: {
     type: String,
-    require: [true, 'Please confirm your email address'],
+    require: [true, 'You must confirm your email address'],
     validate: {
       validator: function (value) {
         return value === this.email;
