@@ -4,7 +4,19 @@
   "description": "Js Bakery Backend (API) for CSR",
   "scripts": {
     "start": "nodemon server.mjs",
-    "start:prod": "SET NODE_ENV=production&&nodemon server.mjs"
+    "start:prod": "SET NODE_ENV=production&&nodemon server.mjs",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+  },
+  "jest": {
+    "transform": {},
+    "moduleFileExtensions": [
+      "js",
+      "mjs"
+    ],
+    "testMatch": [
+      "**/__tests__/**/*.+(js|mjs)",
+      "**/?(*.)+(spec|test).+(js|mjs)"
+    ]
   },
   "keywords": [
     "api",
@@ -33,5 +45,8 @@
     "nodemailer": "^6.9.1",
     "validator": "^13.9.0",
     "xss-clean": "^0.1.1"
+  },
+  "devDependencies": {
+    "jest": "^29.4.3"
   }
 }

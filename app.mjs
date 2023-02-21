@@ -5,11 +5,11 @@ import xss from 'xss-clean';
 import mongoSanitize from 'express-mongo-sanitize';
 import rateLimit from 'express-rate-limit';
 import hpp from 'hpp';
-import { AppError } from './utils/appError.mjs';
 import globalErrorHandler from './controllers/errorController.mjs';
 import userRouter from './routes/userRouter.mjs';
 import productRouter from './routes/productRouter.mjs';
 import orderRouter from './routes/orderRouter.mjs';
+import { AppError } from './utils/appError.mjs';
 
 const limiter = rateLimit({
   windowMS: 10 * 60 * 1000,

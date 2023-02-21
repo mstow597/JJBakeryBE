@@ -13,7 +13,9 @@ const __dirname = path.dirname(__fileName);
 /**
  *
  * @param  {...any} roles Accepts an array of string arguments where each argument is a role defined in the User schema
- * @description Returns Express route middleware function to limit a route to a particular role (admin or user). This middleware should be placed before other middleware functions.
+ * @description
+ * - Returns Express route middleware function to limit a route to a particular role (admin or user).
+ * - This middleware should be placed before other middleware functions.
  * @returns middleware function (express)
  *
  */
@@ -39,14 +41,11 @@ export const restrictTo = (...roles) => {
  * @returns undefined (Note: call is made to next() pass handle to next middleware function in line)
  */
 export const protect = catchAsync(async (req, res, next) => {
-  // 1) Getting token and check if it exists
   let token;
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer'))
     token = req.headers.authorization.split(' ')[1];
-  }
   if (!token) return next(new AppError('You are not logged in. Please log in to get access', 401));
 
-  // 2) Validate the token - verifying jwt signature
   let decoded;
   try {
     decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -54,25 +53,61 @@ export const protect = catchAsync(async (req, res, next) => {
     next(err);
   }
 
-  // 3) Check if user still exists
   const user = await User.findById(decoded.id);
   if (!user) return next(new AppError('The user belonging to this token no longer exists.', 401));
 
-  // 4) Check if user changed password after the JWT token was issued
   if (user.changedPasswordAfter(decoded.iat))
     return next(new AppError('Recently changed password! Please log in again.', 401));
 
-  // 5) Everything checks out
   req.user = user;
   next();
 });
 
+/**
+ *
+ * @param {*} req Express middleware request object
+ * @param {*} res Express middleware response object
+ * @param {*} next Express middleware next object
+ * @description
+ * - Middleware function for defense against CSRF (cross-site-request-forgery) attacks.
+ * - All HTTP routes dealing with acquiring, updating, deleting, or otherwise handling of user data MUST be filtered through this middleware function.
+ * - Extracts the CSRF token from the URL route parameter and hashes it for comparison with hashed CSRF token in DB.
+ * - Checks and compares CSRF token expiration with current date/time.
+ * - If conditions are satisfied, call next() to pass control to next middleware function.
+ * @returns undefined
+ */
+export const checkValidCSRFToken = (req, res, next) => {
+  const hashedParamToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
+  const { csrfToken } = req.user;
+  if (!(hashedParamToken === csrfToken) || req.user.csrfTokenExpires < Date.now())
+    return next(new AppError('Unauthorized request. Please log back into your account to refresh your tokens.'));
+  next();
+};
+
+/**
+ *
+ * @param {*} id
+ * @description
+ * - Utilizes the jsonwebtoken npm library to generate JWT to send to user
+ * - Utilizes the user._id, the primary key for User documents in the User collection (MongoDB)
+ * - Utilizes a secret key (environment variable)
+ * - Encodes an expiration time in the options object (setting expiresIn)
+ * @returns String (Json Web Token - JWT)
+ */
 const signToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN });
 };
 
-const createSendToken = (user, statusCode, res) => {
+/**
+ *
+ */
+const createSendTokens = catchAsync(async (user, statusCode, res) => {
   const token = signToken(user._id);
+  const csrfToken = crypto.randomBytes(32).toString('hex');
+  user.csrfToken = crypto.createHash('sha256').update(csrfToken).digest('hex'); // has csrf token for storagein database
+  user.csrfTokenExpires = new Date(Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000);
+  await user.save({ validateBeforeSave: false });
+
   const cookieOptions = {
     expires: new Date(Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000),
     httpOnly: true,
@@ -80,10 +115,10 @@ const createSendToken = (user, statusCode, res) => {
 
   if (process.env.NODE_ENV === 'production') cookieOptions.secure = true;
   res.cookie('jwt', token, cookieOptions);
-  // Be careful with this line of code - we cannot use the createSendToken function in a scenario where we would need the password to be set.
-  user.password = undefined; //to prevent sending the password information back to the user
-  res.status(201).json({ status: statusCode, data: { user: user, token } });
-};
+  res.cookie('csrf', csrfToken, cookieOptions);
+  user.password = undefined; //to prevent sending the password information back to the user - we are not saving, no updates made to DB
+  res.status(201).json({ status: statusCode, data: { user: user, token, csrfToken } });
+});
 
 export const signup = catchAsync(async (req, res, next) => {
   const user = await User.create({
@@ -112,7 +147,7 @@ export const signup = catchAsync(async (req, res, next) => {
   } catch (err) {
     user.verificationToken = undefined;
     user.verificationTokenExpires = undefined;
-    await user.save();
+    await user.save({ validateBeforeSave: false });
 
     return next(
       new AppError(
@@ -152,7 +187,7 @@ export const sendEmailVerification = catchAsync(async (req, res, next) => {
   } catch (err) {
     user.verificationToken = undefined;
     user.verificationTokenExpires = undefined;
-    await user.save();
+    await user.save({ validateBeforeSave: false });
 
     return next(
       new AppError(
@@ -191,7 +226,7 @@ export const login = catchAsync(async (req, res, next) => {
     );
 
   // If everything checks out, send jwt to client.
-  createSendToken(user, 200, res);
+  createSendTokens(user, 200, res);
 });
 
 export const forgotPassword = catchAsync(async (req, res, next) => {
@@ -257,5 +292,5 @@ export const updatePassword = catchAsync(async (req, res, next) => {
   await user.save();
 
   // 4) Log the user in (send jwt).
-  createSendToken(user, 200, res);
+  createSendTokens(user, 200, res);
 });

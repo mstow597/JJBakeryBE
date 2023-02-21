@@ -65,6 +65,8 @@ const userSchema = new mongoose.Schema({
   passwordResetExpires: { type: Date },
   emailVerificationToken: { type: String },
   emailVerificationTokenExpires: { type: Date },
+  csrfToken: { type: String },
+  csrfTokenExpires: { type: Date },
   verified: { type: Boolean, default: false }, // email verified ? authorized user : non authorized user
   active: { type: Boolean, default: true }, // active ? user has not been "deleted" : user has been "deleted"
 });

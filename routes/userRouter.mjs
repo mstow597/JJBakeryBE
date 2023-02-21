@@ -1,26 +1,50 @@
 import express from 'express';
-import { signup, protect, restrictTo, sendEmailVerification, verifyEmail } from '../controllers/authController.mjs';
-import { deleteUser, getAllUsers, getUser, updateUser } from '../controllers/userController.mjs';
+import {
+  signup,
+  protect,
+  restrictTo,
+  sendEmailVerification,
+  verifyEmail,
+  checkValidCSRFToken,
+  login,
+} from '../controllers/authController.mjs';
+import {
+  getMe,
+  updateMe,
+  deleteMe,
+  deleteUser,
+  getAllUsers,
+  getUser,
+  updateUser,
+  checkForEmailPassword,
+} from '../controllers/userController.mjs';
 
 const router = express.Router();
 
 // Unprotected routes - no auth required
-router.route('/signup').post(signup);
+router.post('/signup', signup);
+router.post('/login', login);
 router.route('/forgotPassword');
 router.route('/resetPassword/:token');
-router.route('/verifyEmail').post(sendEmailVerification);
-router.route('/verifyEmail/:token').get(verifyEmail);
+router.post('/verifyEmail', sendEmailVerification);
+router.get('/verifyEmail/:token', verifyEmail);
 
-// Protected routes - accessible only by users, own profile only.
-router.use(protect, restrictTo('user'));
-router.route('/getMe');
-router.route('/updateMe');
-router.route('/deleteMe');
+// Protected user routes - own profile access only.
+router.get('/getMe/:token', protect, restrictTo('user'), checkValidCSRFToken, getMe);
+router.patch('/updateMe/:token', protect, restrictTo('user'), checkValidCSRFToken, checkForEmailPassword, updateMe);
+router.delete('/deleteMe/:token', protect, restrictTo('user'), checkValidCSRFToken, deleteMe);
 
-router.use(protect, restrictTo('admin'));
-router.route('/').get(getAllUsers);
-router.route('/:id').get(getUser);
-router.route('/update/:id', updateUser);
-router.route('/delete/:id', deleteUser);
+// Protected admin only routes
+router.get('/:token', protect, restrictTo('admin'), checkValidCSRFToken, getAllUsers);
+router.get('/:id/:token', protect, restrictTo('admin'), checkValidCSRFToken, getUser);
+router.patch(
+  '/update/:id/:token',
+  protect,
+  restrictTo('admin'),
+  checkValidCSRFToken,
+  checkForEmailPassword,
+  updateUser
+);
+router.delete('/delete/:id/:token', protect, restrictTo('admin'), checkValidCSRFToken, deleteUser);
 
 export default router;
