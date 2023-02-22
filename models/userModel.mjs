@@ -42,7 +42,7 @@ const userSchema = new mongoose.Schema({
   password: {
     type: String,
     required: true,
-    select: false,
+    // select: false,
     validate: {
       validator: function (value) {
         return validator.isStrongPassword(value, { returnScore: true }) >= 40;

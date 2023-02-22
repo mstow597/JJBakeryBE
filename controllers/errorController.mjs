@@ -6,7 +6,7 @@ const handleCastErrorDB = (err) => {
 };
 
 const handleDuplicateFieldsDB = (err) => {
-  const message = `Duplicate field value ${err.keyValue.name}. Please use another value.`;
+  const message = `Sorry we were unable to create your account. If you are unsure if an account exists for the requested email address, consider submitting a password reset or email verification request.`;
   return new AppError(message, 400);
 };
 
@@ -43,7 +43,7 @@ export default function (err, req, res, next) {
   err.status = err.status || 'error';
 
   if (process.env.NODE_ENV === 'development') sendErrorDev(err, res);
-  else if (process.env.NODE_ENV === 'production') {
+  else if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'test') {
     let error = err;
     if (err.name === 'CastError') error = handleCastErrorDB(err);
     if (err.code === 11000) error = handleDuplicateFieldsDB(err);
