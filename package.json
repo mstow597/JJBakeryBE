@@ -5,7 +5,7 @@
   "scripts": {
     "start": "nodemon server.mjs",
     "start:prod": "SET NODE_ENV=production&&nodemon server.mjs",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --verbose"
   },
   "jest": {
     "transform": {},

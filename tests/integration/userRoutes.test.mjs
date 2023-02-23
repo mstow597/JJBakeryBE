@@ -20,7 +20,7 @@ describe('Routes - /api/v1/users', () => {
     });
     afterEach(async () => {
       await User.deleteMany({});
-      server.close();
+      await server.close();
     });
     it('should create a new user successfully (no duplicate key)', async () => {
       const user = {
@@ -34,11 +34,9 @@ describe('Routes - /api/v1/users', () => {
 
       const expectedResponseObject = {
         status: 'success',
-        data: {
-          name: 'testing testing',
-          email: 'testing1@test.io',
-          message: `testing testing, you're account was successfully created. Prior to accessing you account, you must verify your email address with the link provided in a message sent to your email address: testing1@test.io.`,
-        },
+        message:
+          `You're account was successfully created. Prior to accessing you account, you must verify your email address with the link provided in a message sent to your email address` +
+          '(NODE_ENV test only)',
       };
       const res = await supertest(server).post('/api/v1/users/signup').send(user);
       expect(res.status).toBe(201);

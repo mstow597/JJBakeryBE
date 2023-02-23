@@ -29,7 +29,7 @@ const router = express.Router();
 router.post('/signup', signup);
 router.post('/login', login);
 router.post('/forgotPassword', forgotPassword);
-router.post('/resetPassword/:token', resetPassword);
+router.get('/resetPassword/:token', resetPassword);
 router.post('/sendEmailVerification', sendEmailVerification);
 router.get('/verifyEmail/:token', verifyEmail);
 

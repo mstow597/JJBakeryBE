@@ -11,6 +11,115 @@ const __fileName = url.fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__fileName);
 
 /**
+ * @param user
+ * @param statusCode
+ * @param res
+ * @description
+ * - Function utilized at the end login middleware.
+ * - Generates JWT and CSRF tokens and sends as cookies to end user.
+ * - Stores CSRF token/expiry in DB for validating route authorization.
+ * - JWT encode expiry date/time and user ID - extracted within protect middleware function.
+ * @returns undefined (sends response to user)
+ */
+const createSendTokens = catchAsync(async (user, statusCode, res) => {
+  const token = signToken(user._id);
+  const csrfToken = crypto.randomBytes(32).toString('hex');
+  user.csrfToken = crypto.createHash('sha256').update(csrfToken).digest('hex'); // has csrf token for storagein database
+  user.csrfTokenExpires = new Date(Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000);
+  await user.save({ validateBeforeSave: false });
+
+  const cookieOptions = {
+    expires: new Date(Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000),
+    httpOnly: true,
+  };
+
+  if (process.env.NODE_ENV === 'production') cookieOptions.secure = true;
+  res.cookie('jwt', token, cookieOptions);
+  res.cookie('csrf', csrfToken, cookieOptions);
+  user.password = undefined; //to prevent sending the password information back to the user - we are not saving, no updates made to DB
+  res.status(201).json({ status: statusCode, data: { user: user, token, csrfToken } });
+});
+
+/**
+ *
+ * @param {*} id
+ * @description
+ * - Utilizes the jsonwebtoken npm library to generate JWT to send to user
+ * - Utilizes the user._id, the primary key for User documents in the User collection (MongoDB)
+ * - Utilizes a secret key (environment variable)
+ * - Encodes an expiration time in the options object (setting expiresIn)
+ * @returns String (Json Web Token - JWT)
+ */
+const signToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN });
+};
+
+/**
+ *
+ * @param {*} req Express middleware request object
+ * @param {*} res Express middleware response object
+ * @param {*} statusCode status code for response (200 for email, 201 for new user)
+ * @param {*} option enum: ['email', 'password', 'newUser']
+ * @description
+ * - Utilized by /users/signup, /users/forgotPassword, and /users/sendEmailVerification routes.
+ * - Dynamically generates an email link sent to the user email account. Link will be for email verification or password reset as determined by value of option parameter.
+ * - When NODE_ENV === 'test', returning simple message without sending email d/t email limits (max 100 per month for testing per mailtrap.io)
+ * @returns undefined (sends response to user)
+ */
+const generateAndSendLink = async (req, res, statusCode, option) => {
+  let token, message, html, URL;
+
+  const user = await User.findOne({ email: req.body.email });
+  if (!user) res.status(statusCode).json({ status: 'success', message: 'Link sent to email!' }); // protection from account sniffing
+
+  const routeType = option === 'email' || option === 'newUser' ? 'verifyEmail' : 'resetPassword';
+  if (option === 'email' || option === 'newUser') {
+    token = user.createEmailVerificationToken();
+    URL = `${req.protocol}://${req.get('host')}/api/v1/users/${routeType}/${token}`;
+    message = `To verify your email, please click the link below to submit a GET request to the following URL: ${URL}. If you did not initiate this request, please ignore this email.`;
+    html = `<h2>Verify Your Email<h2><p>To verify your email please click the link below:</p><br /><a href="${URL}">Verify Email</a>`;
+    await user.save({ validateBeforeSave: false });
+  } else if (option === 'password') {
+    token = user.createPasswordResetToken();
+    URL = `${req.protocol}://${req.get('host')}/api/v1/users/${routeType}/${token}`;
+    message = `To reset your password, please click the link below to submit a GET request to the following URL: ${URL}. If you did not initiate this rquest, please ignore this email!`;
+    html = `<h2>Reset Your Password<h2><p>To reset your password please click the link below:</p><br /><a href="${URL}">Reset Password</a>`;
+    await user.save({ validateBeforeSave: false });
+  }
+
+  const responseMessage =
+    option === 'newUser'
+      ? `You're account was successfully created. Prior to accessing you account, you must verify your email address with the link provided in a message sent to your email address`
+      : 'Link sent to email!';
+
+  if (process.env.NODE_ENV === 'test')
+    return res.status(statusCode).json({ status: 'success', message: responseMessage + '(NODE_ENV test only)' });
+
+  try {
+    const linkType = option === 'email' || option === 'newUser' ? 'email verification' : 'password reset';
+    await sendEmail({
+      email: user.email,
+      subject: `Your ${linkType} link (valid for 10 minutes).`,
+      message,
+      html,
+    });
+
+    res.status(statusCode).json({ status: 'success', message: responseMessage });
+  } catch (err) {
+    if (option === 'email' || option === 'newUser') {
+      user.verificationToken = undefined;
+      user.verificationTokenExpires = undefined;
+      await user.save({ validateBeforeSave: false });
+    } else if (option === 'password') {
+      user.passwordResetToken = undefined;
+      user.passwordResetExpires = undefined;
+      await user.save({ validateBeforeSave: false });
+    }
+    return next(new AppError('There was an error with your request. Please retry again later!.'));
+  }
+};
+
+/**
  *
  * @param  {...any} roles Accepts an array of string arguments where each argument is a role defined in the User schema
  * @description
@@ -25,20 +134,6 @@ export const restrictTo = (...roles) => {
       return next(new AppError('You do not have permission to perform this action.', 403));
     next();
   };
-};
-
-/**
- *
- * @param {*} id
- * @description
- * - Utilizes the jsonwebtoken npm library to generate JWT to send to user
- * - Utilizes the user._id, the primary key for User documents in the User collection (MongoDB)
- * - Utilizes a secret key (environment variable)
- * - Encodes an expiration time in the options object (setting expiresIn)
- * @returns String (Json Web Token - JWT)
- */
-const signToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN });
 };
 
 /**
@@ -64,43 +159,46 @@ export const signup = catchAsync(async (req, res, next) => {
     passwordConfirm: req.body.passwordConfirm,
   });
 
-  const verificationToken = user.createEmailVerificationToken();
   user.emailConfirm = undefined;
   await user.save({ validateBeforeSave: false });
 
-  const verifyURL = `${req.protocol}://${req.get('host')}/api/v1/users/verifyEmail/${verificationToken}`;
-  const message = `To verify your email, please copy and paste the following URL into your browser: ${verifyURL}. If you did not sign up for an account, please ignore this email.`;
-  const html = `<h2>Verify Your Email<h2><p>To verify your email please click the link below:</p><br /><a href="${verifyURL}">Verify Email</a>`;
+  await generateAndSendLink(req, res, 201, 'newUser');
 
-  if (!(process.env.NODE_ENV === 'test')) {
-    try {
-      await sendEmail({
-        email: user.email,
-        subject: 'Your password reset token (valid for 10 minutes).',
-        message,
-        html,
-      });
-    } catch (err) {
-      user.verificationToken = undefined;
-      user.verificationTokenExpires = undefined;
-      await user.save({ validateBeforeSave: false });
+  // const verificationToken = user.createEmailVerificationToken();
 
-      return next(
-        new AppError(
-          'There was an error sending the email verification. Please retry a POST request at {{URL}}/api/v1/users/verifyEmail with email in body.'
-        )
-      );
-    }
-  }
+  // const verifyURL = `${req.protocol}://${req.get('host')}/api/v1/users/verifyEmail/${verificationToken}`;
+  // const message = `To verify your email, please copy and paste the following URL into your browser: ${verifyURL}. If you did not sign up for an account, please ignore this email.`;
+  // const html = `<h2>Verify Your Email<h2><p>To verify your email please click the link below:</p><br /><a href="${verifyURL}">Verify Email</a>`;
 
-  res.status(201).json({
-    status: 'success',
-    data: {
-      name: user.name,
-      email: user.email,
-      message: `${user.name}, you're account was successfully created. Prior to accessing you account, you must verify your email address with the link provided in a message sent to your email address: ${user.email}.`,
-    },
-  });
+  // if (!(process.env.NODE_ENV === 'test')) {
+  //   try {
+  //     await sendEmail({
+  //       email: user.email,
+  //       subject: 'Your password reset token (valid for 10 minutes).',
+  //       message,
+  //       html,
+  //     });
+  //   } catch (err) {
+  //     user.verificationToken = undefined;
+  //     user.verificationTokenExpires = undefined;
+  //     await user.save({ validateBeforeSave: false });
+
+  //     return next(
+  //       new AppError(
+  //         'There was an error sending the email verification. Please retry a POST request at {{URL}}/api/v1/users/verifyEmail with email in body.'
+  //       )
+  //     );
+  //   }
+  // }
+
+  // res.status(201).json({
+  //   status: 'success',
+  //   data: {
+  //     name: user.name,
+  //     email: user.email,
+  //     message: `${user.name}, you're account was successfully created. Prior to accessing you account, you must verify your email address with the link provided in a message sent to your email address: ${user.email}.`,
+  //   },
+  // });
 });
 
 /**
@@ -114,32 +212,34 @@ export const signup = catchAsync(async (req, res, next) => {
  * @returns undefined (invokes next() middleware function)
  */
 export const sendEmailVerification = catchAsync(async (req, res, next) => {
-  const user = await User.findOne({ email: req.body.email });
-  if (!user) res.status(200).json({ status: 'success', message: 'Token sent to email!' }); // protection from account sniffing
+  await generateAndSendLink(req, res, 200, 'email');
 
-  const verificationToken = user.createEmailVerificationToken();
-  await user.save({ validateBeforeSave: false });
+  // const user = await User.findOne({ email: req.body.email });
+  // if (!user) res.status(200).json({ status: 'success', message: 'Token sent to email!' }); // protection from account sniffing
 
-  const verifyURL = `${req.protocol}://${req.get('host')}/api/v1/users/verifyEmail/${verificationToken}`;
-  const message = `To verify your email, please click the link below to submit a GET request to the following URL: ${verifyURL}. If you did not sign up for an account, please ignore this email.`;
-  const html = `<h2>Verify Your Email<h2><p>To verify your email please click the link below:</p><br /><a href="${verifyURL}">Verify Email</a>`;
+  // const verificationToken = user.createEmailVerificationToken();
+  // await user.save({ validateBeforeSave: false });
 
-  try {
-    await sendEmail({
-      email: user.email,
-      subject: 'Your password reset token (valid for 10 minutes).',
-      message,
-      html,
-    });
-  } catch (err) {
-    user.verificationToken = undefined;
-    user.verificationTokenExpires = undefined;
-    await user.save({ validateBeforeSave: false });
+  // const verifyURL = `${req.protocol}://${req.get('host')}/api/v1/users/verifyEmail/${verificationToken}`;
+  // const message = `To verify your email, please click the link below to submit a GET request to the following URL: ${verifyURL}. If you did not sign up for an account, please ignore this email.`;
+  // const html = `<h2>Verify Your Email<h2><p>To verify your email please click the link below:</p><br /><a href="${verifyURL}">Verify Email</a>`;
 
-    return next(new AppError('There was an error sending the email verification. Please retry again later!.'));
-  }
+  // try {
+  //   await sendEmail({
+  //     email: user.email,
+  //     subject: `Your ${linkType} link (valid for 10 minutes).`,
+  //     message,
+  //     html,
+  //   });
 
-  res.status(200).json({ status: 'success', message: 'Token sent to email!' });
+  //   res.status(200).json({ status: 'success', message: 'Token sent to email!' });
+  // } catch (err) {
+  //   user.verificationToken = undefined;
+  //   user.verificationTokenExpires = undefined;
+  //   await user.save({ validateBeforeSave: false });
+
+  //   return next(new AppError('There was an error sending the email verification. Please retry again later!.'));
+  // }
 });
 
 /**
@@ -194,36 +294,6 @@ export const login = catchAsync(async (req, res, next) => {
     );
 
   createSendTokens(user, 200, res);
-});
-
-/**
- * @param user
- * @param statusCode
- * @param res
- * @description
- * - Function utilized at the end login middleware.
- * - Generates JWT and CSRF tokens and sends as cookies to end user.
- * - Stores CSRF token/expiry in DB for validating route authorization.
- * - JWT encode expiry date/time and user ID - extracted within protect middleware function.
- * @returns undefined (sends response to user)
- */
-const createSendTokens = catchAsync(async (user, statusCode, res) => {
-  const token = signToken(user._id);
-  const csrfToken = crypto.randomBytes(32).toString('hex');
-  user.csrfToken = crypto.createHash('sha256').update(csrfToken).digest('hex'); // has csrf token for storagein database
-  user.csrfTokenExpires = new Date(Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000);
-  await user.save({ validateBeforeSave: false });
-
-  const cookieOptions = {
-    expires: new Date(Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000),
-    httpOnly: true,
-  };
-
-  if (process.env.NODE_ENV === 'production') cookieOptions.secure = true;
-  res.cookie('jwt', token, cookieOptions);
-  res.cookie('csrf', csrfToken, cookieOptions);
-  user.password = undefined; //to prevent sending the password information back to the user - we are not saving, no updates made to DB
-  res.status(201).json({ status: statusCode, data: { user: user, token, csrfToken } });
 });
 
 /**
@@ -295,30 +365,34 @@ export const checkValidCSRFToken = (req, res, next) => {
  * @returns undefined (invokes next() middleware function)
  */
 export const forgotPassword = catchAsync(async (req, res, next) => {
-  const user = await User.findOne({ email: req.body.email });
-  if (!user) return res.status(200).json({ status: 'success', message: 'Token sent to email!' }); // faking success to prevent account sniffing.
+  generateAndSendLink(req, res, 200, 'password');
 
-  const resetToken = user.createPasswordResetToken();
-  await user.save({ validateBeforeSave: false });
+  // const user = await User.findOne({ email: req.body.email });
+  // if (!user) return res.status(200).json({ status: 'success', message: 'Token sent to email!' }); // faking success to prevent account sniffing.
 
-  const resetURL = `${req.protocol}://${req.get('host')}/api/v1/users/resetPassword/${resetToken}`;
-  const message = `Forgot your password? Submit a PATCH request with your new password and passwordConfirm to ${resetURL}\nIf you didn't forget your password, please ignore this email!`;
+  // const resetToken = user.createPasswordResetToken();
+  // await user.save({ validateBeforeSave: false });
 
-  try {
-    await sendEmail({
-      email: user.email,
-      subject: 'Your password reset token (valid for 10 minutes).',
-      message,
-    });
+  // const resetURL = `${req.protocol}://${req.get('host')}/api/v1/users/resetPassword/${resetToken}`;
+  // const message = `Forgot your password? Submit a PATCH request with your new password and passwordConfirm to ${resetURL}\nIf you didn't forget your password, please ignore this email!`;
+  // const html = `<h2>Reset Your Password<h2><p>To reset your password please click the link below:</p><br /><a href="${resetURL}">Verify Email</a>`;
 
-    res.status(200).json({ status: 'success', message: 'Token sent to email!' });
-  } catch (err) {
-    user.passwordResetToken = undefined;
-    user.passwordResetExpires = undefined;
-    await user.save({ validateBeforeSave: false });
+  // try {
+  //   await sendEmail({
+  //     email: user.email,
+  //     subject: 'Your password reset token (valid for 10 minutes).',
+  //     message,
+  //     html,
+  //   });
 
-    return next(new AppError('There was an error sending the email. Try again later!', 500));
-  }
+  //   res.status(200).json({ status: 'success', message: 'Token sent to email!' });
+  // } catch (err) {
+  //   user.passwordResetToken = undefined;
+  //   user.passwordResetExpires = undefined;
+  //   await user.save({ validateBeforeSave: false });
+
+  //   return next(new AppError('There was an error sending the email. Try again later!', 500));
+  // }
 });
 
 /**
