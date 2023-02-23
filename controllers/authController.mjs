@@ -213,33 +213,6 @@ export const signup = catchAsync(async (req, res, next) => {
  */
 export const sendEmailVerification = catchAsync(async (req, res, next) => {
   await generateAndSendLink(req, res, 200, 'email');
-
-  // const user = await User.findOne({ email: req.body.email });
-  // if (!user) res.status(200).json({ status: 'success', message: 'Token sent to email!' }); // protection from account sniffing
-
-  // const verificationToken = user.createEmailVerificationToken();
-  // await user.save({ validateBeforeSave: false });
-
-  // const verifyURL = `${req.protocol}://${req.get('host')}/api/v1/users/verifyEmail/${verificationToken}`;
-  // const message = `To verify your email, please click the link below to submit a GET request to the following URL: ${verifyURL}. If you did not sign up for an account, please ignore this email.`;
-  // const html = `<h2>Verify Your Email<h2><p>To verify your email please click the link below:</p><br /><a href="${verifyURL}">Verify Email</a>`;
-
-  // try {
-  //   await sendEmail({
-  //     email: user.email,
-  //     subject: `Your ${linkType} link (valid for 10 minutes).`,
-  //     message,
-  //     html,
-  //   });
-
-  //   res.status(200).json({ status: 'success', message: 'Token sent to email!' });
-  // } catch (err) {
-  //   user.verificationToken = undefined;
-  //   user.verificationTokenExpires = undefined;
-  //   await user.save({ validateBeforeSave: false });
-
-  //   return next(new AppError('There was an error sending the email verification. Please retry again later!.'));
-  // }
 });
 
 /**
@@ -366,33 +339,14 @@ export const checkValidCSRFToken = (req, res, next) => {
  */
 export const forgotPassword = catchAsync(async (req, res, next) => {
   generateAndSendLink(req, res, 200, 'password');
+});
 
-  // const user = await User.findOne({ email: req.body.email });
-  // if (!user) return res.status(200).json({ status: 'success', message: 'Token sent to email!' }); // faking success to prevent account sniffing.
+export const displayResetPasswordPage = catchAsync(async (req, res, next) => {
+  const hashedToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
+  const user = await User.findOne({ passwordResetToken: hashedToken, passwordResetExpires: { $gt: Date.now() } });
 
-  // const resetToken = user.createPasswordResetToken();
-  // await user.save({ validateBeforeSave: false });
-
-  // const resetURL = `${req.protocol}://${req.get('host')}/api/v1/users/resetPassword/${resetToken}`;
-  // const message = `Forgot your password? Submit a PATCH request with your new password and passwordConfirm to ${resetURL}\nIf you didn't forget your password, please ignore this email!`;
-  // const html = `<h2>Reset Your Password<h2><p>To reset your password please click the link below:</p><br /><a href="${resetURL}">Verify Email</a>`;
-
-  // try {
-  //   await sendEmail({
-  //     email: user.email,
-  //     subject: 'Your password reset token (valid for 10 minutes).',
-  //     message,
-  //     html,
-  //   });
-
-  //   res.status(200).json({ status: 'success', message: 'Token sent to email!' });
-  // } catch (err) {
-  //   user.passwordResetToken = undefined;
-  //   user.passwordResetExpires = undefined;
-  //   await user.save({ validateBeforeSave: false });
-
-  //   return next(new AppError('There was an error sending the email. Try again later!', 500));
-  // }
+  if (!user) return next(new AppError('Token is invalid or has expired.', 400));
+  res.status(200).sendFile(path.join(__dirname, '../private/html/resetPassword.html'));
 });
 
 /**
@@ -408,6 +362,7 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
  * @returns undefined (invokes next() middleware function)
  */
 export const resetPassword = catchAsync(async (req, res, next) => {
+  console.log(req.body);
   if (!req.body.password || !req.body.passwordConfirm)
     return next(
       new AppError(
@@ -440,8 +395,7 @@ export const resetPassword = catchAsync(async (req, res, next) => {
  * @returns undefined (invokes next() middleware function)
  */
 export const updatePassword = catchAsync(async (req, res, next) => {
-  // const user = await User.findById(req.user._id).select('+password');
-  const user = req.user;
+  const user = await User.findById(req.user._id).select('+password');
 
   if (!(await user.correctPassword(req.body.passwordCurrent, user.password)))
     return next(new AppError('Your current password is wrong.', 401));

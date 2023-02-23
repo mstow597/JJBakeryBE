@@ -51,6 +51,16 @@ describe('Routes - /api/v1/users', () => {
         message: `Sorry we were unable to create your account. If you are unsure if an account exists for the requested email address, consider submitting a password reset or email verification request.`,
       });
     });
+
+    it('Should insert validated user and ignore/override when role data field is passed', async () => {});
+    it('Should insert validated user and ignore/override when passwordChangedAt data field is passed', async () => {});
+    it('Should insert validated user and ignore/override when passwordResetToken data field is passed', async () => {});
+    it('Should insert validated user and ignore/override when passwordResetExpires data field is passed', async () => {});
+    it('Should insert validated user and ignore/override when emailVerificationToken data field is passed', async () => {});
+    it('Should insert validated user and ignore/override when csrftoken data field is passed', async () => {});
+    it('Should insert validated user and ignore/override when csrfTokenExpires data field is passed', async () => {});
+    it('Should insert validated user and ignore/override when verified data field is passed', async () => {});
+    it('Should insert validated user and ignore/override when active data field is passed', async () => {});
   });
   afterAll(async () => {
     await User.deleteMany({});

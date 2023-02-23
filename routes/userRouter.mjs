@@ -11,6 +11,7 @@ import {
   resetPassword,
   updatePassword,
   updateEmail,
+  displayResetPasswordPage,
 } from '../controllers/authController.mjs';
 import {
   getMe,
@@ -29,7 +30,8 @@ const router = express.Router();
 router.post('/signup', signup);
 router.post('/login', login);
 router.post('/forgotPassword', forgotPassword);
-router.get('/resetPassword/:token', resetPassword);
+router.get('/resetPassword/:token', displayResetPasswordPage);
+router.post('/resetPassword/:token', resetPassword);
 router.post('/sendEmailVerification', sendEmailVerification);
 router.get('/verifyEmail/:token', verifyEmail);
 

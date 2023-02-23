@@ -5,14 +5,7 @@ import { getServer } from '../tempServer.mjs';
 describe('User Model', () => {
   let server;
   let expectedUserObjectAfterInsert;
-  const validUser = {
-    name: 'John Doe',
-    email: 'johndoe@test.io',
-    emailConfirm: 'johndoe@test.io',
-    phone: '5555555555',
-    password: 'Secret123#',
-    passwordConfirm: 'Secret123#',
-  };
+  let validUser;
 
   const handleHashAndPreSave = (userAfterSave) => {
     expectedUserObjectAfterInsert.passwordConfirm = undefined;
@@ -23,6 +16,7 @@ describe('User Model', () => {
 
   beforeEach(async () => {
     server = await getServer();
+
     expectedUserObjectAfterInsert = {
       name: 'John Doe',
       email: 'johndoe@test.io',
@@ -33,6 +27,15 @@ describe('User Model', () => {
       role: 'user',
       verified: false,
       active: true,
+    };
+
+    validUser = {
+      name: 'John Doe',
+      email: 'johndoe@test.io',
+      emailConfirm: 'johndoe@test.io',
+      phone: '5555555555',
+      password: 'Secret123#',
+      passwordConfirm: 'Secret123#',
     };
   });
 
@@ -57,28 +60,90 @@ describe('User Model', () => {
     handleHashAndPreSave(userAfterSave);
     expect(userAfterSave).toMatchObject(expectedUserObjectAfterInsert);
   });
-  it('Should insert validated user and ignore/override when role data field is passed', async () => {});
-  it('Should insert validated user and ignore/override when passwordChangedAt data field is passed', async () => {});
-  it('Should insert validated user and ignore/override when passwordResetToken data field is passed', async () => {});
-  it('Should insert validated user and ignore/override when passwordResetExpires data field is passed', async () => {});
-  it('Should insert validated user and ignore/override when emailVerificationToken data field is passed', async () => {});
-  it('Should insert validated user and ignore/override when csrftoken data field is passed', async () => {});
-  it('Should insert validated user and ignore/override when csrfTokenExpires data field is passed', async () => {});
-  it('Should insert validated user and ignore/override when verified data field is passed', async () => {});
-  it('Should insert validated user and ignore/override when active data field is passed', async () => {});
-  it('Should reject user when name is missing', async () => {});
-  it('Should reject user when name contains non-alpha character(s)', async () => {});
-  it('Should reject user when email is missing', async () => {});
-  it('Should reject user when email is not a valid email', async () => {});
-  it('Should reject user when emailConfirm is missing', async () => {});
-  it('Should reject user when emailConfirm does not match email', async () => {});
-  it('Should reject user when phone is missing', async () => {});
-  it('Should reject user when phone is not a valid phone number', async () => {});
-  it('Should reject user when password is missing', async () => {});
-  it('Should reject user when password is not a strong password (0 < points < 10)', async () => {});
-  it('Should reject user when password is not a strong password (10 <= points < 20)', async () => {});
-  it('Should reject user when password is not a strong password (20 <= points < 30)', async () => {});
-  it('Should reject user when password is not a strong password (30 <= points < 40)', async () => {});
-  it('Should reject user when passwordConfirm is missing', async () => {});
-  it('Should reject user when passwordConfirm does not match password', async () => {});
+  it('Should reject user when name is missing', async () => {
+    delete validUser.name;
+    const user = new User(validUser);
+    await expect(user.save()).rejects.toThrow(mongoose.Error.ValidationError);
+  });
+  it('Should reject user when name contains non-alpha character(s)', async () => {
+    validUser.name = 'test123';
+    const user = new User(validUser);
+    await expect(user.save()).rejects.toThrow(mongoose.Error.ValidationError);
+  });
+  it('Should reject user when email is missing', async () => {
+    delete validUser.email;
+    const user = new User(validUser);
+    await expect(user.save()).rejects.toThrow(mongoose.Error.ValidationError);
+  });
+  it('Should reject user when email is not a valid email', async () => {
+    validUser.email = 'test123';
+    validUser.emailConfirm = 'test123';
+    const user = new User(validUser);
+    await expect(user.save()).rejects.toThrow(mongoose.Error.ValidationError);
+  });
+  it('Should reject user when emailConfirm is missing', async () => {
+    delete validUser.emailConfirm;
+    const user = new User(validUser);
+    await expect(user.save()).rejects.toThrow(mongoose.Error.ValidationError);
+  });
+  it('Should reject user when emailConfirm does not match email', async () => {
+    validUser.emailConfirm = 'test@test.io';
+    const user = new User(validUser);
+    await expect(user.save()).rejects.toThrow(mongoose.Error.ValidationError);
+  });
+  it('Should reject user when phone is missing', async () => {
+    delete validUser.phone;
+    const user = new User(validUser);
+    await expect(user.save()).rejects.toThrow(mongoose.Error.ValidationError);
+  });
+  it('Should reject user when phone is not a valid phone number (too short)', async () => {
+    validUser.phone = '123';
+    const user = new User(validUser);
+    await expect(user.save()).rejects.toThrow(mongoose.Error.ValidationError);
+  });
+  it('Should reject user when phone is not a valid phone number (too long)', async () => {
+    validUser.phone = '1234567891011';
+    const user = new User(validUser);
+    await expect(user.save()).rejects.toThrow(mongoose.Error.ValidationError);
+  });
+  it('Should reject user when password is missing', async () => {
+    delete validUser.password;
+    delete validUser.passwordConfirm;
+    const user = new User(validUser);
+    await expect(user.save()).rejects.toThrow(mongoose.Error.ValidationError);
+  });
+  it('Should reject user when password is not a strong password (0 < points < 10)', async () => {
+    validUser.password = 'testing';
+    validUser.passwordConfirm = 'testing';
+    const user = new User(validUser);
+    await expect(user.save()).rejects.toThrow(mongoose.Error.ValidationError);
+  });
+  it('Should reject user when password is not a strong password (10 <= points < 20)', async () => {
+    validUser.password = 'testingtesting';
+    validUser.passwordConfirm = 'testingtesting';
+    const user = new User(validUser);
+    await expect(user.save()).rejects.toThrow(mongoose.Error.ValidationError);
+  });
+  it('Should reject user when password is not a strong password (20 <= points < 30)', async () => {
+    validUser.password = 'Testing';
+    validUser.passwordConfirm = 'Testing';
+    const user = new User(validUser);
+    await expect(user.save()).rejects.toThrow(mongoose.Error.ValidationError);
+  });
+  it('Should reject user when password is not a strong password (30 <= points < 40)', async () => {
+    validUser.password = 'Testing1';
+    validUser.passwordConfirm = 'Testing1';
+    const user = new User(validUser);
+    await expect(user.save()).rejects.toThrow(mongoose.Error.ValidationError);
+  });
+  it('Should reject user when passwordConfirm is missing', async () => {
+    delete validUser.passwordConfirm;
+    const user = new User(validUser);
+    await expect(user.save()).rejects.toThrow(mongoose.Error.ValidationError);
+  });
+  it('Should reject user when passwordConfirm does not match password', async () => {
+    validUser.passwordConfirm = 'unmatchedPassword';
+    const user = new User(validUser);
+    await expect(user.save()).rejects.toThrow(mongoose.Error.ValidationError);
+  });
 });

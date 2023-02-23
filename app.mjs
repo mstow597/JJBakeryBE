@@ -22,6 +22,7 @@ const app = express();
 app.use(helmet()); // security
 if (process.env.NODE_ENV === 'development') app.use(morgan('dev')); // development logging
 app.use(express.json({ limit: '10kb' })); // body parser - reading data from body and putting into req.body as JSON - limit for DDOS protection
+app.use(express.urlencoded({ extended: true })); // parsing form data
 app.use(mongoSanitize()); // data sanitization against NoSQL query injection
 app.use(xss()); // data sanitization against XSS attacks (cross site scripting)
 app.use(hpp({ whitelist: [''] })); // TODO: Add whitelist options for parameters allowed for duplication in URL query string

@@ -22,7 +22,7 @@ const userSchema = new mongoose.Schema({
   },
   emailConfirm: {
     type: String,
-    require: [true, 'You must confirm your email address'],
+    required: [true, 'You must confirm your email address'],
     validate: {
       validator: function (value) {
         return value === this.email;
@@ -42,7 +42,7 @@ const userSchema = new mongoose.Schema({
   password: {
     type: String,
     required: true,
-    // select: false,
+    select: false,
     validate: {
       validator: function (value) {
         return validator.isStrongPassword(value, { returnScore: true }) >= 40;
