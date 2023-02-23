@@ -24,8 +24,23 @@ export const getMe = (req, res, next) => {
   res.status(200).json({ status: 'success', data: { name, phone, email } });
 };
 
-export const updateMe = catchAsync(async (req, res, next) => {});
-export const deleteMe = catchAsync(async (req, res, next) => {});
+export const updateMe = catchAsync(async (req, res, next) => {
+  const user = await User.findOneAndUpdate(req.user._id, filterObj(req.body, 'name', 'phone'), {
+    new: true,
+    runValidators: true,
+  });
+
+  if (!user) return next(new AppError('Unable to update your account. Please log back in and try again.'));
+
+  res.status(200).json({ status: 'success', data: { user } });
+});
+export const deleteMe = catchAsync(async (req, res, next) => {
+  const user = await User.findOneAndUpdate(req.user._id, { active: false });
+
+  if (!user) return next(new AppError('Unable to inactivate your account. Please log back in and try again.'));
+
+  res.status(200).json({ status: 'success', message: 'Successfully inactivated your account.' });
+});
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 //////////// ADMIN ONLY ROUTE HANDLERS - i.e. Routes with restrictTo('admin') /////////////////
@@ -33,17 +48,20 @@ export const deleteMe = catchAsync(async (req, res, next) => {});
 
 export const getAllUsers = catchAsync(async (req, res, next) => {
   const users = await User.find();
+
   res.status(200).json({ status: 'success', numUsers: users.length, data: { data: users } });
 });
 
 export const getUser = catchAsync(async (req, res, next) => {
   const user = await User.find(req.params.id);
+
   if (!user) return next(new AppError('No user found for given id.'), 404);
+
   res.status(200).json({ status: 'success', data: { data: user } });
 });
 
 export const updateUser = catchAsync(async (req, res, next) => {
-  const user = await User.findOneAndUpdate(req.params.id, filterObj(req.body, 'name', 'phone', 'active'), {
+  const user = await User.findOneAndUpdate(req.params.id, filterObj(req.body, 'name', 'phone'), {
     new: true,
     runValidators: true,
   });
@@ -53,8 +71,9 @@ export const updateUser = catchAsync(async (req, res, next) => {
 });
 
 export const deleteUser = catchAsync(async (req, res, next) => {
-  const user = await User.findOneAndUpdate(req.params.id, { active: false }, { new: true, runValidators: false });
+  const user = await User.findOneAndUpdate(req.params.id, { active: false });
+
   if (!user) return next(new AppError('No user found for given id'), 404);
 
-  res.status(200).json({ status: 'success', data: { data: user } });
+  res.status(200).json({ status: 'success', message: 'Successfully inactivated account.' });
 });

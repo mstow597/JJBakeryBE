@@ -31,7 +31,7 @@ const userSchema = new mongoose.Schema({
   },
   phone: {
     type: String,
-    required: true,
+    required: [true, 'User must have phone number'],
     validate: {
       validator: function (value) {
         return value.match(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/im);
@@ -41,7 +41,7 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ['user', 'admin'], default: 'user' },
   password: {
     type: String,
-    required: true,
+    required: [true, 'User must have password'],
     select: false,
     validate: {
       validator: function (value) {

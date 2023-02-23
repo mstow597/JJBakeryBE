@@ -341,6 +341,18 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
   generateAndSendLink(req, res, 200, 'password');
 });
 
+/**
+ * @param {*} req Express middleware request object
+ * @param {*} res Express middleware response object
+ * @param {*} next Express middleware next object
+ * @description
+ * - Utilized by /api/v1/users/resetPassword/:token GET route
+ * - Checks and validates token within URL (param) - belongs to user and is not expired
+ * - Sends resetPassword HTML file to user to be rendered client side.
+ * - Client side URL remains the same (important for next step).
+ * - After submitting form, a POST request is sent with action = current URL (contains token and correct route to reset password)
+ * @returns undefined (sends response to client)
+ */
 export const displayResetPasswordPage = catchAsync(async (req, res, next) => {
   const hashedToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
   const user = await User.findOne({ passwordResetToken: hashedToken, passwordResetExpires: { $gt: Date.now() } });
