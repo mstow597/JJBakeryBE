@@ -37,7 +37,7 @@ const createSendTokens = catchAsync(async (user, statusCode, res) => {
   res.cookie('jwt', token, cookieOptions);
   res.cookie('csrf', csrfToken, cookieOptions);
   user.password = undefined; //to prevent sending the password information back to the user - we are not saving, no updates made to DB
-  res.status(201).json({ status: statusCode, data: { user: user, token, csrfToken } });
+  res.status(statusCode).json({ status: statusCode, data: { user: user, token, csrfToken } });
 });
 
 /**
@@ -93,7 +93,7 @@ const generateAndSendLink = async (req, res, statusCode, option) => {
       : 'Link sent to email!';
 
   if (process.env.NODE_ENV === 'test')
-    return res.status(statusCode).json({ status: 'success', message: responseMessage + '(NODE_ENV test only)' });
+    return res.status(statusCode).json({ status: 'success', message: responseMessage + '(NODE_ENV test only)', token });
 
   try {
     const linkType = option === 'email' || option === 'newUser' ? 'email verification' : 'password reset';
