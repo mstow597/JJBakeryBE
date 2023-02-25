@@ -84,16 +84,14 @@ userSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
 userSchema.methods.createPasswordResetToken = function () {
   const resetToken = crypto.randomBytes(32).toString('hex');
   this.passwordResetToken = crypto.createHash('sha256').update(resetToken).digest('hex');
-  this.passwordResetExpires = Date.now() + 10 * 60 * 1000; // 10 min password reset token
-
+  this.passwordResetExpires = Date.now() + Number(process.env.TOKEN_EXPIRATION);
   return resetToken;
 };
 
 userSchema.methods.createEmailVerificationToken = function () {
   const emailVerificationToken = crypto.randomBytes(32).toString('hex');
   this.emailVerificationToken = crypto.createHash('sha256').update(emailVerificationToken).digest('hex');
-  this.emailVerificationTokenExpires = Date.now() + 10 * 60 * 1000; // 10 min verify email token
-
+  this.emailVerificationTokenExpires = Date.now() + Number(process.env.TOKEN_EXPIRATION);
   return emailVerificationToken;
 };
 

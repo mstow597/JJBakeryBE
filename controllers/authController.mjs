@@ -70,7 +70,11 @@ const generateAndSendLink = async (req, res, statusCode, option) => {
   let token, message, html, URL;
 
   const user = await User.findOne({ email: req.body.email });
-  if (!user) res.status(statusCode).json({ status: 'success', message: 'Link sent to email!' }); // protection from account sniffing
+  if (!user)
+    return res.status(statusCode).json({
+      status: 'success',
+      message: process.env.NODE_ENV === 'test' ? 'Faking link sent to email - not truly sent' : 'Link sent to email!',
+    }); // protection from account sniffing
 
   const routeType = option === 'email' || option === 'newUser' ? 'verifyEmail' : 'resetPassword';
   if (option === 'email' || option === 'newUser') {
@@ -115,7 +119,7 @@ const generateAndSendLink = async (req, res, statusCode, option) => {
       user.passwordResetExpires = undefined;
       await user.save({ validateBeforeSave: false });
     }
-    return next(new AppError('There was an error with your request. Please retry again later!.'));
+    return next(new AppError('There was an error with your request. Please retry again later!.', 400));
   }
 };
 
@@ -163,42 +167,6 @@ export const signup = catchAsync(async (req, res, next) => {
   await user.save({ validateBeforeSave: false });
 
   await generateAndSendLink(req, res, 201, 'newUser');
-
-  // const verificationToken = user.createEmailVerificationToken();
-
-  // const verifyURL = `${req.protocol}://${req.get('host')}/api/v1/users/verifyEmail/${verificationToken}`;
-  // const message = `To verify your email, please copy and paste the following URL into your browser: ${verifyURL}. If you did not sign up for an account, please ignore this email.`;
-  // const html = `<h2>Verify Your Email<h2><p>To verify your email please click the link below:</p><br /><a href="${verifyURL}">Verify Email</a>`;
-
-  // if (!(process.env.NODE_ENV === 'test')) {
-  //   try {
-  //     await sendEmail({
-  //       email: user.email,
-  //       subject: 'Your password reset token (valid for 10 minutes).',
-  //       message,
-  //       html,
-  //     });
-  //   } catch (err) {
-  //     user.verificationToken = undefined;
-  //     user.verificationTokenExpires = undefined;
-  //     await user.save({ validateBeforeSave: false });
-
-  //     return next(
-  //       new AppError(
-  //         'There was an error sending the email verification. Please retry a POST request at {{URL}}/api/v1/users/verifyEmail with email in body.'
-  //       )
-  //     );
-  //   }
-  // }
-
-  // res.status(201).json({
-  //   status: 'success',
-  //   data: {
-  //     name: user.name,
-  //     email: user.email,
-  //     message: `${user.name}, you're account was successfully created. Prior to accessing you account, you must verify your email address with the link provided in a message sent to your email address: ${user.email}.`,
-  //   },
-  // });
 });
 
 /**
@@ -338,7 +306,7 @@ export const checkValidCSRFToken = (req, res, next) => {
  * @returns undefined (invokes next() middleware function)
  */
 export const forgotPassword = catchAsync(async (req, res, next) => {
-  generateAndSendLink(req, res, 200, 'password');
+  await generateAndSendLink(req, res, 200, 'password');
 });
 
 /**

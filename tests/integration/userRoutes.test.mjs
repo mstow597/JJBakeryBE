@@ -265,6 +265,7 @@ describe('Routes - /api/v1/users', () => {
       verifiedUser = await User.findOne({ email: verifiedUserData.email });
       nonVerifiedUser = await User.findOne({ email: nonVerifiedUserData.email });
     });
+
     afterEach(async () => {
       await User.deleteMany({});
       await server.close();
@@ -308,6 +309,118 @@ describe('Routes - /api/v1/users', () => {
       expect(res.status).toBe(401);
     });
   });
+
+  describe('Forgot Password', () => {
+    let validUser, server;
+
+    const validUserData = {
+      name: 'testing test',
+      email: 'testing5@test.io',
+      emailConfirm: 'testing5@test.io',
+      phone: '5555555555',
+      password: 'Testing1234!@',
+      passwordConfirm: 'Testing1234!@',
+    };
+
+    beforeEach(async () => {
+      server = await getServer();
+
+      await supertest(server).post('/api/v1/users/signup').send(validUserData);
+
+      validUser = await User.findOne({ email: validUserData.email });
+    });
+
+    afterEach(async () => {
+      await User.deleteMany({});
+      await server.close();
+    });
+
+    it('should successfully generate and send email when account with req.body.email exists', async () => {
+      const res = await supertest(server).post('/api/v1/users/forgotPassword').send({ email: validUser.email });
+
+      expect(res.status).toBe(200);
+      expect(res.body.token).toBeDefined();
+      expect(res.body.status).toMatch('success');
+      expect(res.body.message).toMatch('Link sent to email!(NODE_ENV test only)');
+    });
+
+    it('should fail but fake sending message if req.body.email is not associated with an account', async () => {
+      const res = await supertest(server)
+        .post('/api/v1/users/forgotPassword')
+        .send({ email: 'nonexistentEmail@test.io' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.token).not.toBeDefined();
+      expect(res.body.status).toMatch('success');
+      expect(res.body.message).toMatch('Faking link sent to email - not truly sent');
+    });
+
+    it('should fail but fake sending message if req.body.email is missing', async () => {
+      const res = await supertest(server).post('/api/v1/users/forgotPassword').send();
+
+      expect(res.status).toBe(200);
+      expect(res.body.token).not.toBeDefined();
+      expect(res.body.status).toMatch('success');
+      expect(res.body.message).toMatch('Faking link sent to email - not truly sent');
+    });
+  });
+
+  describe('Reset Password (GET)', () => {
+    let validUser, server;
+
+    const validUserData = {
+      name: 'testing test',
+      email: 'testing5@test.io',
+      emailConfirm: 'testing5@test.io',
+      phone: '5555555555',
+      password: 'Testing1234!@',
+      passwordConfirm: 'Testing1234!@',
+    };
+
+    beforeEach(async () => {
+      server = await getServer();
+
+      await supertest(server).post('/api/v1/users/signup').send(validUserData);
+
+      validUser = await User.findOne({ email: validUserData.email });
+    });
+
+    afterEach(async () => {
+      await User.deleteMany({});
+      await server.close();
+    });
+
+    it('should successfully complete request when token is valid', async () => {
+      let res = await supertest(server).post('/api/v1/users/forgotPassword').send({ email: validUser.email });
+      const token = res.body.token;
+      res = await supertest(server).get(`/api/v1/users/resetPassword/${token}`);
+
+      expect(res.status).toBe(200);
+    });
+    it('should reject request when token is invalid', async () => {
+      const res = await supertest(server).get(`/api/v1/users/resetPassword/invalidToken`);
+
+      expect(res.status).toBe(400);
+    });
+    it('should reject request when token is expired', async () => {
+      const actualTokenExpiration = process.env.TOKEN_EXPIRATION;
+      process.env.TOKEN_EXPIRATION = 0;
+
+      let res = await supertest(server).post('/api/v1/users/forgotPassword').send({ email: validUser.email });
+      const token = res.body.token;
+
+      res = await supertest(server).get(`/api/v1/users/resetPassword/${token}`);
+      expect(res.status).toBe(400);
+
+      process.env.TOKEN_EXPIRATION = actualTokenExpiration;
+    });
+  });
+
+  describe('Reset Password (POST)', () => {});
+
+  describe('Send Email Verification', () => {});
+
+  describe('Verify Email', () => {});
 
   afterAll(async () => {
     await User.deleteMany({});
