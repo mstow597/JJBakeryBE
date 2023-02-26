@@ -409,14 +409,79 @@ describe('Routes - /api/v1/users', () => {
       let res = await supertest(server).post('/api/v1/users/forgotPassword').send({ email: validUser.email });
       const token = res.body.token;
 
+      process.env.TOKEN_EXPIRATION = actualTokenExpiration;
+
       res = await supertest(server).get(`/api/v1/users/resetPassword/${token}`);
       expect(res.status).toBe(400);
-
-      process.env.TOKEN_EXPIRATION = actualTokenExpiration;
     });
   });
 
-  describe('Reset Password (POST)', () => {});
+  describe('Reset Password (POST)', () => {
+    let validUser, token, server;
+
+    const validUserData = {
+      name: 'testing test',
+      email: 'testing5@test.io',
+      emailConfirm: 'testing5@test.io',
+      phone: '5555555555',
+      password: 'Testing1234!@',
+      passwordConfirm: 'Testing1234!@',
+    };
+
+    beforeEach(async () => {
+      server = await getServer();
+
+      let res = await supertest(server).post('/api/v1/users/signup').send(validUserData);
+
+      validUser = await User.findOne({ email: validUserData.email }).select('+password');
+
+      res = await supertest(server).post('/api/v1/users/forgotPassword').send({ email: validUserData.email });
+      token = res.body.token;
+    });
+
+    afterEach(async () => {
+      await User.deleteMany({});
+      await server.close();
+    });
+
+    it('should successfully reset password when all conditions met: token valid and not expired, strong password, passwordConfirm === password', async () => {
+      const res = await supertest(server)
+        .post(`/api/v1/users/resetPassword/${token}`)
+        .send({ password: 'UpdatedPass12!@', passwordConfirm: 'UpdatedPass12!@' });
+
+      const oldPassword = validUser.password;
+      validUser = await User.findById(validUser._id).select('+password');
+      expect(res.status).toBe(200);
+      expect(oldPassword).not.toMatch(validUser.password);
+    });
+
+    it('should reject password reset when token is invalid', async () => {
+      const res = await supertest(server)
+        .post(`/api/v1/users/resetPassword/invalidToken`)
+        .send({ password: 'UpdatedPass12!@', passwordConfirm: 'UpdatedPass12!@' });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('should reject password reset when token is expired', async () => {
+      const actualTokenExpiration = process.env.TOKEN_EXPIRATION;
+      process.env.TOKEN_EXPIRATION = 0;
+
+      let res = await supertest(server).post('/api/v1/users/forgotPassword').send({ email: validUser.email });
+      const token = res.body.token;
+
+      process.env.TOKEN_EXPIRATION = actualTokenExpiration;
+
+      res = await supertest(server)
+        .post(`/api/v1/users/resetPassword/${token}`)
+        .send({ password: 'UpdatedPass12!@', passwordConfirm: 'UpdatedPass12!@' });
+
+      expect(res.status).toBe(400);
+    });
+    it('should reject password reset when req.password missing', async () => {});
+    it('should reject password reset when req.passwordConfirm missing', async () => {});
+    it('should reject password reset when req.password not validated (not strong enough)', async () => {});
+  });
 
   describe('Send Email Verification', () => {});
 

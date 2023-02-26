@@ -269,7 +269,6 @@ export const protect = catchAsync(async (req, res, next) => {
     return next(new AppError('Recently changed password! Please log in again.', 401));
 
   req.user = user;
-  console.log(req.user);
   next();
 });
 
@@ -337,16 +336,17 @@ export const displayResetPasswordPage = catchAsync(async (req, res, next) => {
  * - Utilized by /api/v1/users/resetPassword:token POST route
  * - Expects req.body={password: _newPassword_, passwordConfirm: _newPassword_}
  * - Function verifies hashed req.params.token matches resetToken stored in DB and expiry greater than current date/time
+ * - First implementation does not require the user to be verified. Only login requires email verification.
  * - If conditions met, update password and remove passwordResetToken/expiry
  * - Note: the pre('save') middleware automatically updates the changedPasswordAt property fo given user.
  * @returns undefined (invokes next() middleware function)
  */
 export const resetPassword = catchAsync(async (req, res, next) => {
-  console.log(req.body);
   if (!req.body.password || !req.body.passwordConfirm)
     return next(
       new AppError(
-        'Request body missing password and/or passwordConfirm. Please try again with both fields in the request.'
+        'Request body missing password and/or passwordConfirm. Please try again with both fields in the request.',
+        401
       )
     );
   const hashedToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
@@ -355,6 +355,7 @@ export const resetPassword = catchAsync(async (req, res, next) => {
   if (!user) return next(new AppError('Token is invalid or has expired.', 400));
   user.password = req.body.password;
   user.passwordConfirm = req.body.passwordConfirm;
+  user.emailConfirm = user.email;
   user.passwordResetToken = undefined;
   user.passwordResetExpires = undefined;
   await user.save();
