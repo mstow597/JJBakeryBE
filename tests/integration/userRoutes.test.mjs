@@ -483,9 +483,154 @@ describe('Routes - /api/v1/users', () => {
     it('should reject password reset when req.password not validated (not strong enough)', async () => {});
   });
 
-  describe('Send Email Verification', () => {});
+  describe('Send Email Verification', () => {
+    let validUser, server;
 
-  describe('Verify Email', () => {});
+    const validUserData = {
+      name: 'testing test',
+      email: 'testing5@test.io',
+      emailConfirm: 'testing5@test.io',
+      phone: '5555555555',
+      password: 'Testing1234!@',
+      passwordConfirm: 'Testing1234!@',
+    };
+
+    beforeEach(async () => {
+      server = await getServer();
+
+      await supertest(server).post('/api/v1/users/signup').send(validUserData);
+
+      validUser = await User.findOne({ email: validUserData.email });
+    });
+
+    afterEach(async () => {
+      await User.deleteMany({});
+      await server.close();
+    });
+
+    it('should successfully send email if email is associated with an existing account', async () => {
+      const res = await supertest(server).post('/api/v1/users/sendEmailVerification').send({ email: validUser.email });
+
+      expect(res.status).toBe(200);
+      expect(res.body.token).toBeDefined();
+      expect(res.body.status).toMatch('success');
+      expect(res.body.message).toMatch('Link sent to email!(NODE_ENV test only)');
+    });
+    it('should fake (but not truly send) that email is sent if email is not associated with an existing account', async () => {
+      const res = await supertest(server)
+        .post('/api/v1/users/sendEmailVerification')
+        .send({ email: 'nonexistentEmail@test.io' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.token).not.toBeDefined();
+      expect(res.body.status).toMatch('success');
+      expect(res.body.message).toMatch('Faking link sent to email - not truly sent');
+    });
+
+    it('should fail but fake sending message if req.body.email is missing', async () => {
+      const res = await supertest(server).post('/api/v1/users/sendEmailVerification').send();
+
+      expect(res.status).toBe(200);
+      expect(res.body.token).not.toBeDefined();
+      expect(res.body.status).toMatch('success');
+      expect(res.body.message).toMatch('Faking link sent to email - not truly sent');
+    });
+  });
+
+  describe('Verify Email', () => {
+    let validUser, server;
+
+    beforeEach(async () => {
+      server = await getServer();
+
+      validUser = {
+        name: 'testing testing',
+        email: 'testing1@test.io',
+        emailConfirm: 'testing1@test.io',
+        phone: '5555555555',
+        password: 'Testing1234!@#',
+        passwordConfirm: 'Testing1234!@#',
+      };
+    });
+
+    afterEach(async () => {
+      await User.deleteMany({});
+      await server.close();
+    });
+
+    it('should successfully verify email for user when token is valid and not expired', async () => {
+      let res = await supertest(server).post('/api/v1/users/signup').send(validUser);
+
+      const token = res.body.token;
+
+      res = await supertest(server).get(`/api/v1/users/verifyEmail/${token}`);
+
+      validUser = await User.findOne({ email: validUser.email });
+
+      expect(res.status).toBe(200);
+      expect(res.text).toBeDefined();
+      expect(validUser.verified).toBe(true);
+      expect(validUser.emailVerificationToken).not.toBeDefined();
+      expect(validUser.emailVerificationTokenExpires).not.toBeDefined();
+    });
+
+    it('should reject verification of email when user token is valid but expired', async () => {
+      const actualTokenExpiration = process.env.TOKEN_EXPIRATION;
+      process.env.TOKEN_EXPIRATION = 0;
+
+      let res = await supertest(server).post('/api/v1/users/signup').send(validUser);
+      const token = res.body.token;
+      res = await supertest(server).get(`/api/v1/users/verifyEmail/${token}`);
+
+      process.env.TOKEN_EXPIRATION = actualTokenExpiration;
+
+      res = await supertest(server).get(`/api/v1/users/resetPassword/${token}`);
+      validUser = await User.findOne({ email: validUser.email });
+
+      expect(res.status).toBe(400);
+      expect(validUser.verified).toBe(false);
+      expect(validUser.emailVerificationToken).toBeDefined();
+      expect(validUser.emailVerificationTokenExpires).toBeDefined();
+    });
+    it('should reject verification of email when user token is invalid', async () => {
+      let res = await supertest(server).post('/api/v1/users/signup').send(validUser);
+
+      const token = res.body.token;
+
+      res = await supertest(server).get(`/api/v1/users/verifyEmail/invalidToken`);
+
+      validUser = await User.findOne({ email: validUser.email });
+
+      expect(res.status).toBe(400);
+      expect(validUser.verified).toBe(false);
+      expect(validUser.emailVerificationToken).toBeDefined();
+      expect(validUser.emailVerificationTokenExpires).toBeDefined();
+    });
+    it('should reject verification of email when no token is passed', async () => {
+      let res = await supertest(server).post('/api/v1/users/signup').send(validUser);
+
+      const token = res.body.token;
+
+      res = await supertest(server).get(`/api/v1/users/verifyEmail`);
+
+      validUser = await User.findOne({ email: validUser.email });
+
+      expect(res.status).toBe(401);
+      expect(validUser.verified).toBe(false);
+      expect(validUser.emailVerificationToken).toBeDefined();
+      expect(validUser.emailVerificationTokenExpires).toBeDefined();
+    });
+  });
+
+  describe('Get Me', () => {});
+  describe('Update Me', () => {});
+  describe('Delete Me', () => {});
+  describe('Update My Password', () => {});
+  describe('Update My Email', () => {});
+  describe('Admin Get All Users', () => {});
+  describe('Admin Get Single User', () => {});
+  describe('Admin Update User', () => {});
+  describe('Admin Delete User', () => {});
 
   afterAll(async () => {
     await User.deleteMany({});

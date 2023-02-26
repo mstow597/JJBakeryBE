@@ -119,7 +119,7 @@ const generateAndSendLink = async (req, res, statusCode, option) => {
       user.passwordResetExpires = undefined;
       await user.save({ validateBeforeSave: false });
     }
-    return next(new AppError('There was an error with your request. Please retry again later!.', 400));
+    return next(new AppError('There was an error transmitting email. Please retry again later!.', 500));
   }
 };
 
@@ -286,7 +286,7 @@ export const protect = catchAsync(async (req, res, next) => {
  * @returns undefined
  */
 export const checkValidCSRFToken = (req, res, next) => {
-  const hashedParamToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
+  const hashedParamToken = crypto.createHash('sha256').update(req.body.token).digest('hex');
   const { csrfToken } = req.user;
   if (!(hashedParamToken === csrfToken) || req.user.csrfTokenExpires < Date.now())
     return next(new AppError('Unauthorized request. Please log back into your account to refresh your tokens.'));
@@ -354,8 +354,8 @@ export const resetPassword = catchAsync(async (req, res, next) => {
 
   if (!user) return next(new AppError('Token is invalid or has expired.', 400));
   user.password = req.body.password;
-  user.passwordConfirm = req.body.passwordConfirm;
-  user.emailConfirm = user.email;
+  user.passwordConfirm = req.body.passwordConfirm; // necessary for validators
+  user.emailConfirm = user.email; // necessary for validators
   user.passwordResetToken = undefined;
   user.passwordResetExpires = undefined;
   await user.save();

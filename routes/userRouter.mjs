@@ -37,18 +37,18 @@ router.get('/verifyEmail/:token', verifyEmail);
 
 // Protected user routes - own profile access only.
 router
-  .route('/me/:token')
-  .get(protect, checkValidCSRFToken, getMe)
+  .route('/me')
+  .post(protect, checkValidCSRFToken, getMe) // POST d/t csrfToken passed as hidden
   .patch(protect, checkValidCSRFToken, checkForEmailPassword, updateMe)
   .delete(protect, checkValidCSRFToken, deleteMe);
-router.patch('/me/updatePassword/:token', protect, checkValidCSRFToken, updatePassword);
-router.patch('/me/updateEmail/:token', protect, checkValidCSRFToken, updateEmail);
+router.patch('/me/updatePassword', protect, checkValidCSRFToken, updatePassword);
+router.patch('/me/updateEmail', protect, checkValidCSRFToken, updateEmail);
 
 // Protected admin only routes
-router.get('/:token', protect, restrictTo('admin'), checkValidCSRFToken, getAllUsers);
+router.post('/', protect, restrictTo('admin'), checkValidCSRFToken, getAllUsers);
 router
-  .route('/:id/:token')
-  .get(protect, restrictTo('admin'), checkValidCSRFToken, getUser)
+  .route('/:id')
+  .post(protect, restrictTo('admin'), checkValidCSRFToken, getUser)
   .patch(protect, restrictTo('admin'), checkValidCSRFToken, checkForEmailPassword, updateUser)
   .delete(protect, restrictTo('admin'), checkValidCSRFToken, deleteUser);
 
