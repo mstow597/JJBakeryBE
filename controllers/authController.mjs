@@ -415,3 +415,22 @@ export const updateEmail = catchAsync(async (req, res, next) => {
 
   res.status(200).json({ status: 'success', data: { user: updatedUser } });
 });
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////// TEST ONLY MIDDLEWARE ////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * @param {*} req Express middleware request object
+ * @param {*} res Express middleware response object
+ * @param {*} next Express middleware next object
+ * @description
+ * - Middleware function strictly for testing purposes only (see userRouter.mjs for implementation - conditionally adding this route to router)
+ * - Setting a user to admin in production will be restricted to DBA (must manually switch user to admin) for security implications.
+ * @returns undefined (sends response to user)
+ */
+export const setAsAdmin = catchAsync(async (req, res, next) => {
+  const user = await User.findOne({ email: req.body.email });
+  user.role = 'admin';
+  await user.save({ validateBeforeSave: false });
+  res.status(200).json({ status: 'success', data: { user } });
+});
