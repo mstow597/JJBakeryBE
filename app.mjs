@@ -27,7 +27,7 @@ app.use(mongoSanitize()); // data sanitization against NoSQL query injection
 app.use(xss()); // data sanitization against XSS attacks (cross site scripting)
 app.use(hpp({ whitelist: [''] })); // TODO: Add whitelist options for parameters allowed for duplication in URL query string
 app.use(express.static(`./public`)); // serving static files - in this project, images of products
-app.use('/api', limiter);
+if (process.env.NODE_ENV !== 'test') app.use('/api', limiter);
 app.use('/api/v1/users', userRouter);
 app.use('/api/v1/products', productRouter);
 app.use('/api/v1/orders', orderRouter);

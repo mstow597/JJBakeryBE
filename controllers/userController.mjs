@@ -13,6 +13,7 @@ const filterObj = (obj, ...allowedFields) => {
   Object.keys(obj).forEach((element) => {
     if (allowedFields.includes(element)) newObject[element] = obj[element];
   });
+  return newObject;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////

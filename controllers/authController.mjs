@@ -286,10 +286,12 @@ export const protect = catchAsync(async (req, res, next) => {
  * @returns undefined
  */
 export const checkValidCSRFToken = (req, res, next) => {
+  if (!req.body.token)
+    return next(new AppError('Bad request. Missing CSRF token. Please resubmit with valid CSRF token.', 401));
   const hashedParamToken = crypto.createHash('sha256').update(req.body.token).digest('hex');
   const { csrfToken } = req.user;
   if (!(hashedParamToken === csrfToken) || req.user.csrfTokenExpires < Date.now())
-    return next(new AppError('Unauthorized request. Please log back into your account to refresh your tokens.'));
+    return next(new AppError('Unauthorized request. Please log back into your account to refresh your tokens.', 401));
   next();
 };
 

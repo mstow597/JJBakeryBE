@@ -606,6 +606,7 @@ describe('Routes - /api/v1/users', () => {
       expect(validUser.emailVerificationToken).toBeDefined();
       expect(validUser.emailVerificationTokenExpires).toBeDefined();
     });
+
     it('should reject verification of email when no token is passed', async () => {
       let res = await supertest(server).post('/api/v1/users/signup').send(validUser);
 
@@ -615,7 +616,7 @@ describe('Routes - /api/v1/users', () => {
 
       validUser = await User.findOne({ email: validUser.email });
 
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(404);
       expect(validUser.verified).toBe(false);
       expect(validUser.emailVerificationToken).toBeDefined();
       expect(validUser.emailVerificationTokenExpires).toBeDefined();
@@ -623,16 +624,175 @@ describe('Routes - /api/v1/users', () => {
   });
 
   describe('Get Me', () => {
-    it('should successfully retrieve current user data if user logged in (JWT valid and not expired) and CSRF token valid and not expired', () => {});
-    it('should reject if protect middleware not satisfied (JWT invalid)', () => {});
-    it('should reject if protect middleware not satisfied (JWT missing)', () => {});
-    it('should reject if protect middleware not satisfied (JWT expired)', () => {});
-    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token mismatch)', () => {});
-    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token missing)', () => {});
-    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token expired)', () => {});
+    let validUser, server, res, jwt, csrf;
+
+    beforeEach(async () => {
+      server = await getServer();
+
+      validUser = {
+        name: 'testing testing',
+        email: 'testing1@test.io',
+        emailConfirm: 'testing1@test.io',
+        phone: '5555555555',
+        password: 'Testing1234!@#',
+        passwordConfirm: 'Testing1234!@#',
+      };
+
+      res = await supertest(server).post('/api/v1/users/signup').send(validUser);
+
+      const verifyToken = res.body.token;
+      await supertest(server).get(`/api/v1/users/verifyEmail/${verifyToken}`);
+
+      res = await supertest(server)
+        .post('/api/v1/users/login')
+        .send({ email: validUser.email, password: validUser.password });
+
+      jwt = res.body.data.token;
+      csrf = res.body.data.csrfToken;
+    });
+
+    afterEach(async () => {
+      await User.deleteMany({});
+      await server.close();
+    });
+
+    it('should successfully retrieve current user data if user logged in (JWT valid and not expired) and CSRF token valid and not expired', async () => {
+      res = await supertest(server)
+        .post('/api/v1/users/me')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ token: csrf });
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toMatch('success');
+      expect(res.body.data.name).toBeDefined();
+      expect(res.body.data.phone).toBeDefined();
+      expect(res.body.data.email).toBeDefined();
+    });
+
+    it('should reject if protect middleware not satisfied (JWT invalid)', async () => {
+      res = await supertest(server)
+        .post('/api/v1/users/me')
+        .set('Authorization', `Bearer invalidToken`)
+        .send({ token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(res.body.data).not.toBeDefined();
+    });
+
+    it('should reject if protect middleware not satisfied (JWT missing)', async () => {
+      res = await supertest(server).post('/api/v1/users/me').send({ token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(res.body.data).not.toBeDefined();
+    });
+
+    it('should reject if protect middleware not satisfied (JWT expired)', async () => {
+      const actualJWTExpiration = process.env.JWT_EXPIRES_IN;
+      process.env.JWT_EXPIRES_IN = 0;
+
+      res = await supertest(server)
+        .post('/api/v1/users/login')
+        .send({ email: validUser.email, password: validUser.password });
+
+      jwt = res.body.data.token;
+      csrf = res.body.data.csrfToken;
+
+      res = await supertest(server)
+        .post('/api/v1/users/me')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ token: csrf });
+
+      process.env.JWT_EXPIRES_IN = actualJWTExpiration;
+
+      expect(res.status).toBe(401);
+      expect(res.body.status).toMatch('failed');
+      expect(res.body.message).toMatch('Your token has expired. Please log in again.');
+    });
+
+    it('should reject if checkValidCSRFToken middleware not satisfied (CSRF token invalid)', async () => {
+      res = await supertest(server)
+        .post('/api/v1/users/me')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ token: 'invalid' });
+
+      expect(res.status).toBe(401);
+      expect(res.body.message).toMatch(
+        'Unauthorized request. Please log back into your account to refresh your tokens.'
+      );
+    });
+
+    it('should reject if checkValidCSRFToken middleware not satisfied (CSRF token missing)', async () => {
+      res = await supertest(server).post('/api/v1/users/me').set('Authorization', `Bearer ${jwt}`);
+
+      expect(res.status).toBe(401);
+      expect(res.body.message).toMatch('Bad request. Missing CSRF token. Please resubmit with valid CSRF token.');
+    });
+
+    it('should reject if checkValidCSRFToken middleware not satisfied (CSRF token expired)', async () => {
+      validUser = await User.findOne({ email: validUser.email });
+      await validUser.setCSRFTokenToExpired();
+
+      res = await supertest(server)
+        .post('/api/v1/users/me')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(res.body.message).toMatch(
+        'Unauthorized request. Please log back into your account to refresh your tokens.'
+      );
+    });
   });
+
   describe('Update Me', () => {
-    it('should successfully update current user data if user logged in (JWT valid and not expired), CSRF token valid and not expired, and data for name and/or phone validated', () => {});
+    let validUser, server, res, jwt, csrf;
+
+    beforeEach(async () => {
+      server = await getServer();
+
+      validUser = {
+        name: 'testing testing',
+        email: 'testing1@test.io',
+        emailConfirm: 'testing1@test.io',
+        phone: '5555555555',
+        password: 'Testing1234!@#',
+        passwordConfirm: 'Testing1234!@#',
+      };
+
+      res = await supertest(server).post('/api/v1/users/signup').send(validUser);
+
+      const verifyToken = res.body.token;
+      await supertest(server).get(`/api/v1/users/verifyEmail/${verifyToken}`);
+
+      res = await supertest(server)
+        .post('/api/v1/users/login')
+        .send({ email: validUser.email, password: validUser.password });
+
+      jwt = res.body.data.token;
+      csrf = res.body.data.csrfToken;
+    });
+
+    afterEach(async () => {
+      await User.deleteMany({});
+      await server.close();
+    });
+
+    it('should successfully update current user data if user logged in (JWT valid and not expired), CSRF token valid and not expired, and data for name and/or phone validated', async () => {
+      const oldName = validUser.name;
+      const oldPhone = validUser.phone;
+
+      res = await supertest(server)
+        .patch('/api/v1/users/me')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ name: 'UpdatedName', phone: '1234567890', token: csrf });
+
+      validUser = await User.findOne({ email: validUser.email });
+
+      expect(res.status).toBe(200);
+      expect(oldName).not.toMatch(validUser.name);
+      expect(oldPhone).not.toMatch(validUser.phone);
+    });
+
     it('should successfully update current user data if conditions met and ignore changes requested for role property', () => {});
     it('should successfully update current user data if conditions met and ignore changes requested for email property', () => {});
     it('should successfully update current user data if conditions met and ignore changes requested for emailConfirm property', () => {});
@@ -652,6 +812,7 @@ describe('Routes - /api/v1/users', () => {
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token missing)', () => {});
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token expired)', () => {});
   });
+
   describe('Delete Me', () => {
     it('should successfully delete (set active property to false) current user data if user logged in (JWT valid and not expired), CSRF token valid and not expired, and data for name and/or phone validated', () => {});
     it('should reject if protect middleware not satisfied (JWT invalid)', () => {});
@@ -661,6 +822,7 @@ describe('Routes - /api/v1/users', () => {
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token missing)', () => {});
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token expired)', () => {});
   });
+
   describe('Update My Password', () => {
     it('should successfully update current user password if user logged in (JWT valid and not expired), CSRF token valid and not expired, hashed value for req.body.currentPassword === user.password, and password/passwordConfirm match and are validated successfully', () => {});
     it('should reject updating current user password if hashed req.body.currentPassword !== user.password', () => {});
@@ -676,6 +838,7 @@ describe('Routes - /api/v1/users', () => {
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token missing)', () => {});
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token expired)', () => {});
   });
+
   describe('Update My Email', () => {
     it('should successfully update current user email if user logged in (JWT valid and not expired), CSRF token valid and not expired, hashed value for req.body.password === user.password, and email/emailConfirm match and are validated successfully', () => {});
     it('should reject updating current user password if hashed req.body.password !== user.password', () => {});
@@ -691,9 +854,13 @@ describe('Routes - /api/v1/users', () => {
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token missing)', () => {});
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token expired)', () => {});
   });
+
   describe('Admin Get All Users', () => {});
+
   describe('Admin Get Single User', () => {});
+
   describe('Admin Update User', () => {});
+
   describe('Admin Delete User', () => {});
 
   afterAll(async () => {
