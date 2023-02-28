@@ -3,8 +3,8 @@ import { AppError } from '../utils/appError.mjs';
 import { catchAsync } from '../utils/catchAsync.mjs';
 
 export const checkForEmailPassword = (req, res, next) => {
-  if (req.body.password || req.body.passwordConfirm || req.body.email || req.body.emailConfirm)
-    return next(new AppError('Not allowed to update password nor email with this route.'), 404);
+  if (req.body.password || req.body.email)
+    return next(new AppError('Not allowed to update password nor email with this route.', 404));
   next();
 };
 
@@ -31,16 +31,24 @@ export const updateMe = catchAsync(async (req, res, next) => {
     runValidators: true,
   });
 
-  if (!user) return next(new AppError('Unable to update your account. Please log back in and try again.'));
+  if (!user) return next(new AppError('Unable to update your account. Please log back in and try again.', 400));
 
   res.status(200).json({ status: 'success', data: { user } });
 });
 
 export const deleteMe = catchAsync(async (req, res, next) => {
-  const user = await User.findOneAndUpdate(req.user._id, { active: false });
+  const user = await User.findOneAndUpdate(req.user._id, { active: false, csrfTokenExpires: new Date(0) });
 
   if (!user) return next(new AppError('Unable to inactivate your account. Please log back in and try again.'));
 
+  const cookieOptions = {
+    expires: new Date(0),
+    httpOnly: true,
+  };
+
+  if (process.env.NODE_ENV === 'production') cookieOptions.secure = true;
+  res.cookie('jwt', '', cookieOptions);
+  res.cookie('csrf', '', cookieOptions);
   res.status(200).json({ status: 'success', message: 'Successfully inactivated your account.' });
 });
 

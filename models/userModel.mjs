@@ -107,6 +107,14 @@ if (process.env.NODE_ENV === 'test') {
     await this.save({ validateBeforeSave: false });
   };
 
+  userSchema.methods.setEmailVerifyTokenRandom = async function () {
+    this.emailVerificationToken = crypto
+      .createHash('sha256')
+      .update(crypto.randomBytes(32).toString('hex'))
+      .digest('hex');
+    await this.save({ validateBeforeSave: false });
+  };
+
   userSchema.methods.setEmailVerifyTokenToExpired = async function () {
     this.emailVerificationTokenExpires = new Date(Date.now() - 10000);
     await this.save({ validateBeforeSave: false });
@@ -126,6 +134,16 @@ if (process.env.NODE_ENV === 'test') {
     this.verified = true;
     this.emailVerificationToken = undefined;
     this.emailVerificationTokenExpires = undefined;
+    await this.save({ validateBeforeSave: false });
+  };
+
+  userSchema.methods.setActiveFalse = async function () {
+    this.active = false;
+    await this.save({ validateBeforeSave: false });
+  };
+
+  userSchema.methods.setPasswordChangedAtCurrentTime = async function () {
+    this.passwordChangedAt = new Date(Date.now() - 10000);
     await this.save({ validateBeforeSave: false });
   };
 }

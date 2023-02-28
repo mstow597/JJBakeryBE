@@ -231,7 +231,10 @@ export const login = catchAsync(async (req, res, next) => {
   const user = await User.findOne({ email }).select('+password');
   if (!user || !user.verified || !(await user.correctPassword(password, user.password)))
     return next(
-      new AppError('Incorrect email or password, or email not verified (must be verified to access account).', 401)
+      new AppError(
+        'Incorrect email or password, email not verified (must be verified to access account), account inactived (to reactivate, please contact customer service using our contact form), or account does not exist.',
+        401
+      )
     );
 
   createSendTokens(user, 200, res);
@@ -263,7 +266,7 @@ export const protect = catchAsync(async (req, res, next) => {
   }
 
   const user = await User.findById(decoded.id);
-  if (!user) return next(new AppError('The user belonging to this token no longer exists.', 401));
+  if (!user) return next(new AppError('Invalid token, user does not exist, or user inactivated.', 401));
 
   if (user.changedPasswordAfter(decoded.iat))
     return next(new AppError('Recently changed password! Please log in again.', 401));
