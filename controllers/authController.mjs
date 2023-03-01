@@ -37,7 +37,7 @@ const createSendTokens = catchAsync(async (user, statusCode, res) => {
   res.cookie('jwt', token, cookieOptions);
   res.cookie('csrf', csrfToken, cookieOptions);
   user.password = undefined; //to prevent sending the password information back to the user - we are not saving, no updates made to DB
-  res.status(statusCode).json({ status: statusCode, data: { user: user, token, csrfToken } });
+  res.status(statusCode).json({ status: 'success', data: { user: user, token, csrfToken } });
 });
 
 /**
@@ -163,7 +163,6 @@ export const signup = catchAsync(async (req, res, next) => {
     passwordConfirm: req.body.passwordConfirm,
   });
 
-  user.emailConfirm = undefined;
   await user.save({ validateBeforeSave: false });
 
   await generateAndSendLink(req, res, 201, 'newUser');
@@ -383,11 +382,14 @@ export const resetPassword = catchAsync(async (req, res, next) => {
 export const updatePassword = catchAsync(async (req, res, next) => {
   const user = await User.findById(req.user._id).select('+password');
 
+  if (!req.body.passwordCurrent) return next(new AppError('You must confirm your current password.', 401));
+
   if (!(await user.correctPassword(req.body.passwordCurrent, user.password)))
     return next(new AppError('Your current password is wrong.', 401));
 
   user.password = req.body.password;
   user.passwordConfirm = req.body.passwordConfirm;
+  user.emailConfirm = user.email;
   await user.save();
 
   res.status(200).json({ status: 'success', message: 'Password updated successfully.' });

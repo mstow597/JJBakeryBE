@@ -1053,6 +1053,7 @@ describe('Routes - /api/v1/users', () => {
       expect(validUser.phone).toMatch(newPhone);
       expect(validUser.verified).toBe(true);
     });
+
     it('should successfully update current user data if conditions met and ignore changes requested for active property', async () => {
       res = await supertest(server).patch('/api/v1/users/me').set('Authorization', `Bearer ${jwt}`).send({
         name: newName,
@@ -1068,6 +1069,7 @@ describe('Routes - /api/v1/users', () => {
       expect(validUser.phone).toMatch(newPhone);
       expect(validUser.active).toBe(true);
     });
+
     it('should reject if protect middleware not satisfied (JWT invalid)', async () => {
       res = await supertest(server).patch('/api/v1/users/me').set('Authorization', `Bearer invalidToken`).send({
         name: newName,
@@ -1077,6 +1079,7 @@ describe('Routes - /api/v1/users', () => {
 
       expect(res.status).toBe(401);
     });
+
     it('should reject if protect middleware not satisfied (JWT missing)', async () => {
       res = await supertest(server).patch('/api/v1/users/me').send({
         name: newName,
@@ -1084,8 +1087,13 @@ describe('Routes - /api/v1/users', () => {
         token: csrf,
       });
 
+      validUser = await User.findOne({ email: validUser.email });
+
+      expect(validUser.name).not.toMatch(newName);
+      expect(validUser.phone).not.toMatch(newPhone);
       expect(res.status).toBe(401);
     });
+
     it('should reject if protect middleware not satisfied (JWT expired)', async () => {
       const actualJWTExpiration = process.env.JWT_EXPIRES_IN;
       process.env.JWT_EXPIRES_IN = 0;
@@ -1113,6 +1121,7 @@ describe('Routes - /api/v1/users', () => {
       expect(validUser.name).not.toMatch(newName);
       expect(validUser.phone).not.toMatch(newPhone);
     });
+
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token mismatch)', async () => {
       res = await supertest(server).patch('/api/v1/users/me').set('Authorization', `Bearer ${jwt}`).send({
         name: newName,
@@ -1129,6 +1138,7 @@ describe('Routes - /api/v1/users', () => {
       expect(validUser.name).not.toMatch(newName);
       expect(validUser.phone).not.toMatch(newPhone);
     });
+
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token missing)', async () => {
       res = await supertest(server).patch('/api/v1/users/me').set('Authorization', `Bearer ${jwt}`).send({
         name: newName,
@@ -1142,6 +1152,7 @@ describe('Routes - /api/v1/users', () => {
       expect(validUser.name).not.toMatch(newName);
       expect(validUser.phone).not.toMatch(newPhone);
     });
+
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token expired)', async () => {
       validUser = await User.findOne({ email: validUser.email });
       validUser.setCSRFTokenToExpired();
@@ -1220,8 +1231,6 @@ describe('Routes - /api/v1/users', () => {
         .post('/api/v1/users/me')
         .set('Authorization', `Bearer ${jwt}`)
         .send({ token: csrf });
-
-      console.log(res);
 
       res = await supertest(server)
         .post('/api/v1/users/login')
@@ -1312,19 +1321,355 @@ describe('Routes - /api/v1/users', () => {
   });
 
   describe('Update My Password', () => {
-    it('should successfully update current user password if user logged in (JWT valid and not expired), CSRF token valid and not expired, hashed value for req.body.currentPassword === user.password, and password/passwordConfirm match and are validated successfully', () => {});
-    it('should reject updating current user password if hashed req.body.currentPassword !== user.password', () => {});
-    it('should reject updating current user password if req.body.currentPassword missing', () => {});
-    it('should reject updating current user password if req.body.password missing', () => {});
-    it('should reject updating current user password if req.body.passwordConfirm missing', () => {});
-    it('should reject updating current user password if req.body.password !== req.body.passwordConfirm', () => {});
-    it('should reject updating current user password if req.body.password not strong enough (does not pass validation)', () => {});
-    it('should reject if protect middleware not satisfied (JWT invalid)', () => {});
-    it('should reject if protect middleware not satisfied (JWT missing)', () => {});
-    it('should reject if protect middleware not satisfied (JWT expired)', () => {});
-    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token mismatch)', () => {});
-    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token missing)', () => {});
-    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token expired)', () => {});
+    let validUser, server, res, jwt, csrf;
+    const newPassword = 'NewPassword1!';
+
+    beforeEach(async () => {
+      server = await getServer();
+
+      validUser = {
+        name: 'testing testing',
+        email: 'testing1@test.io',
+        emailConfirm: 'testing1@test.io',
+        phone: '5555555555',
+        password: 'Testing1234!@#',
+        passwordConfirm: 'Testing1234!@#',
+      };
+
+      res = await supertest(server).post('/api/v1/users/signup').send(validUser);
+
+      const verifyToken = res.body.token;
+      await supertest(server).get(`/api/v1/users/verifyEmail/${verifyToken}`);
+
+      res = await supertest(server)
+        .post('/api/v1/users/login')
+        .send({ email: validUser.email, password: validUser.password });
+
+      jwt = res.body.data.token;
+      csrf = res.body.data.csrfToken;
+    });
+    afterEach(async () => {
+      await User.deleteMany({});
+      await server.close();
+    });
+
+    it('should successfully update current user password if user logged in (JWT valid and not expired), CSRF token valid and not expired, hashed value for req.body.currentPassword === user.password, and password/passwordConfirm match and are validated successfully', async () => {
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({
+          passwordCurrent: validUser.password,
+          password: newPassword,
+          passwordConfirm: newPassword,
+          token: csrf,
+        });
+
+      console.log(res);
+
+      expect(res.status).toBe(200);
+      expect(res.body.message).toMatch('Password updated successfully.');
+
+      res = await supertest(server).post('/api/v1/users/login').send({ email: validUser.email, password: newPassword });
+
+      const cookies = res.header['set-cookie'];
+      const cookiesObj = {};
+
+      cookies.forEach((element) => {
+        const array = element.split(/=/);
+        cookiesObj[array[0]] = array.slice(1).join('=');
+      });
+
+      expect(res.status).toBe(200);
+      expect(cookiesObj.jwt).toBeDefined();
+      expect(cookiesObj.csrf).toBeDefined();
+    });
+    it('should reject updating current user password if hashed req.body.currentPassword !== user.password', async () => {
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({
+          passwordCurrent: 'incorrectPassword',
+          password: newPassword,
+          passwordConfirm: newPassword,
+          token: csrf,
+        });
+
+      // console.log(res);
+
+      expect(res.status).toBe(401);
+
+      res = await supertest(server).post('/api/v1/users/login').send({ email: validUser.email, password: newPassword });
+
+      const cookies = res.header['set-cookie'];
+      const cookiesObj = {};
+
+      if (cookies) {
+        cookies.forEach((element) => {
+          const array = element.split(/=/);
+          cookiesObj[array[0]] = array.slice(1).join('=');
+          expect(cookiesObj.jwt).not.toBeDefined();
+          expect(cookiesObj.csrf).not.toBeDefined();
+        });
+      }
+
+      // console.log(res);
+
+      expect(res.status).toBe(401);
+    });
+    it('should reject updating current user password if req.body.currentPassword missing', async () => {
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ password: newPassword, passwordConfirm: newPassword, token: csrf });
+
+      expect(res.status).toBe(401);
+
+      res = await supertest(server).post('/api/v1/users/login').send({ email: validUser.email, password: newPassword });
+
+      const cookies = res.header['set-cookie'];
+      const cookiesObj = {};
+
+      if (cookies) {
+        cookies.forEach((element) => {
+          const array = element.split(/=/);
+          cookiesObj[array[0]] = array.slice(1).join('=');
+          expect(cookiesObj.jwt).not.toBeDefined();
+          expect(cookiesObj.csrf).not.toBeDefined();
+        });
+      }
+
+      expect(res.status).toBe(401);
+    });
+
+    it('should reject updating current user password if req.body.password missing', async () => {
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ passwordCurrent: validUser.password, passwordConfirm: newPassword, token: csrf });
+
+      // console.log(res);
+
+      expect(res.status).toBe(400);
+
+      res = await supertest(server).post('/api/v1/users/login').send({ email: validUser.email, password: newPassword });
+
+      const cookies = res.header['set-cookie'];
+      const cookiesObj = {};
+
+      if (cookies) {
+        cookies.forEach((element) => {
+          const array = element.split(/=/);
+          cookiesObj[array[0]] = array.slice(1).join('=');
+          expect(cookiesObj.jwt).not.toBeDefined();
+          expect(cookiesObj.csrf).not.toBeDefined();
+        });
+      }
+
+      expect(res.status).toBe(401);
+    });
+
+    it('should reject updating current user password if req.body.passwordConfirm missing', async () => {
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({
+          passwordCurrent: validUser.password,
+          passwordConfirm: newPassword,
+          token: csrf,
+        });
+
+      expect(res.status).toBe(400);
+
+      res = await supertest(server).post('/api/v1/users/login').send({ email: validUser.email, password: newPassword });
+
+      const cookies = res.header['set-cookie'];
+      const cookiesObj = {};
+
+      if (cookies) {
+        cookies.forEach((element) => {
+          const array = element.split(/=/);
+          cookiesObj[array[0]] = array.slice(1).join('=');
+          expect(cookiesObj.jwt).not.toBeDefined();
+          expect(cookiesObj.csrf).not.toBeDefined();
+        });
+      }
+
+      expect(res.status).toBe(401);
+    });
+
+    it('should reject updating current user password if req.body.password !== req.body.passwordConfirm', async () => {
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({
+          passwordCurrent: validUser.password,
+          password: newPassword,
+          passwordConfirm: 'mismatchedNewPassword',
+          token: csrf,
+        });
+
+      expect(res.status).toBe(400);
+
+      res = await supertest(server).post('/api/v1/users/login').send({ email: validUser.email, password: newPassword });
+
+      const cookies = res.header['set-cookie'];
+      const cookiesObj = {};
+
+      if (cookies) {
+        cookies.forEach((element) => {
+          const array = element.split(/=/);
+          cookiesObj[array[0]] = array.slice(1).join('=');
+          expect(cookiesObj.jwt).not.toBeDefined();
+          expect(cookiesObj.csrf).not.toBeDefined();
+        });
+      }
+
+      expect(res.status).toBe(401);
+    });
+    it('should reject updating current user password if req.body.password not strong enough (does not pass validation)', async () => {
+      const weakPassword = '123';
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({
+          passwordCurrent: validUser.password,
+          password: weakPassword,
+          passwordConfirm: weakPassword,
+          token: csrf,
+        });
+
+      expect(res.status).toBe(400);
+
+      res = await supertest(server).post('/api/v1/users/login').send({ email: validUser.email, password: newPassword });
+
+      const cookies = res.header['set-cookie'];
+      const cookiesObj = {};
+
+      if (cookies) {
+        cookies.forEach((element) => {
+          const array = element.split(/=/);
+          cookiesObj[array[0]] = array.slice(1).join('=');
+          expect(cookiesObj.jwt).not.toBeDefined();
+          expect(cookiesObj.csrf).not.toBeDefined();
+        });
+      }
+
+      expect(res.status).toBe(401);
+    });
+    it('should reject if protect middleware not satisfied (JWT invalid)', async () => {
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer incorrectJWT`)
+        .send({
+          passwordCurrent: validUser.password,
+          password: weakPassword,
+          passwordConfirm: weakPassword,
+          token: csrf,
+        });
+
+      expect(res.status).toBe(400);
+
+      res = await supertest(server).post('/api/v1/users/login').send({ email: validUser.email, password: newPassword });
+
+      const cookies = res.header['set-cookie'];
+      const cookiesObj = {};
+
+      if (cookies) {
+        cookies.forEach((element) => {
+          const array = element.split(/=/);
+          cookiesObj[array[0]] = array.slice(1).join('=');
+          expect(cookiesObj.jwt).not.toBeDefined();
+          expect(cookiesObj.csrf).not.toBeDefined();
+        });
+      }
+
+      expect(res.status).toBe(401);
+    });
+    it('should reject if protect middleware not satisfied (JWT missing)', async () => {
+      res = await supertest(server).patch('/api/v1/users/me/updatePassword').send({
+        passwordCurrent: validUser.password,
+        password: weakPassword,
+        passwordConfirm: weakPassword,
+        token: csrf,
+      });
+
+      expect(res.status).toBe(400);
+
+      res = await supertest(server).post('/api/v1/users/login').send({ email: validUser.email, password: newPassword });
+
+      const cookies = res.header['set-cookie'];
+      const cookiesObj = {};
+
+      if (cookies) {
+        cookies.forEach((element) => {
+          const array = element.split(/=/);
+          cookiesObj[array[0]] = array.slice(1).join('=');
+          expect(cookiesObj.jwt).not.toBeDefined();
+          expect(cookiesObj.csrf).not.toBeDefined();
+        });
+      }
+
+      expect(res.status).toBe(401);
+    });
+    it('should reject if protect middleware not satisfied (JWT expired)', async () => {});
+    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token mismatch)', async () => {
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({
+          passwordCurrent: validUser.password,
+          password: weakPassword,
+          passwordConfirm: weakPassword,
+          token: 'mismatchedCSRF',
+        });
+
+      expect(res.status).toBe(400);
+
+      res = await supertest(server).post('/api/v1/users/login').send({ email: validUser.email, password: newPassword });
+
+      const cookies = res.header['set-cookie'];
+      const cookiesObj = {};
+
+      if (cookies) {
+        cookies.forEach((element) => {
+          const array = element.split(/=/);
+          cookiesObj[array[0]] = array.slice(1).join('=');
+          expect(cookiesObj.jwt).not.toBeDefined();
+          expect(cookiesObj.csrf).not.toBeDefined();
+        });
+      }
+
+      expect(res.status).toBe(401);
+    });
+    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token missing)', async () => {
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({
+          passwordCurrent: validUser.password,
+          password: weakPassword,
+          passwordConfirm: weakPassword,
+        });
+
+      expect(res.status).toBe(400);
+
+      res = await supertest(server).post('/api/v1/users/login').send({ email: validUser.email, password: newPassword });
+
+      const cookies = res.header['set-cookie'];
+      const cookiesObj = {};
+
+      if (cookies) {
+        cookies.forEach((element) => {
+          const array = element.split(/=/);
+          cookiesObj[array[0]] = array.slice(1).join('=');
+          expect(cookiesObj.jwt).not.toBeDefined();
+          expect(cookiesObj.csrf).not.toBeDefined();
+        });
+      }
+
+      expect(res.status).toBe(401);
+    });
+    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token expired)', async () => {});
   });
 
   describe('Update My Email', () => {

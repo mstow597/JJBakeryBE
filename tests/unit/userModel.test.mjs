@@ -8,7 +8,6 @@ describe('User Model', () => {
   let validUser;
 
   const handleHashAndPreSave = (userAfterSave) => {
-    expectedUserObjectAfterInsert.passwordConfirm = undefined;
     expectedUserObjectAfterInsert.password = userAfterSave.password;
     expectedUserObjectAfterInsert._id = userAfterSave._id;
     expectedUserObjectAfterInsert.__v = userAfterSave.__v;
@@ -20,10 +19,8 @@ describe('User Model', () => {
     expectedUserObjectAfterInsert = {
       name: 'John Doe',
       email: 'johndoe@test.io',
-      emailConfirm: 'johndoe@test.io',
       phone: '5555555555',
       password: 'Secret123#',
-      passwordConfirm: 'Secret123#',
       role: 'user',
       verified: false,
       active: true,
