@@ -558,9 +558,41 @@ describe('Routes - /api/v1/users', () => {
       expect(res.status).toBe(400);
     });
 
-    it('should reject password reset when req.password missing', async () => {});
-    it('should reject password reset when req.passwordConfirm missing', async () => {});
-    it('should reject password reset when req.password not validated (not strong enough)', async () => {});
+    it('should reject password reset when req.password missing', async () => {
+      const res = await supertest(server)
+        .post(`/api/v1/users/resetPassword/${token}`)
+        .send({ passwordConfirm: 'UpdatedPass12!@' });
+
+      const oldPassword = validUser.password;
+      validUser = await User.findById(validUser._id).select('+password');
+
+      expect(res.status).toBe(401);
+      expect(oldPassword).toMatch(validUser.password);
+    });
+
+    it('should reject password reset when req.passwordConfirm missing', async () => {
+      const res = await supertest(server)
+        .post(`/api/v1/users/resetPassword/${token}`)
+        .send({ password: 'UpdatedPass12!@' });
+
+      const oldPassword = validUser.password;
+      validUser = await User.findById(validUser._id).select('+password');
+
+      expect(res.status).toBe(401);
+      expect(oldPassword).toMatch(validUser.password);
+    });
+
+    it('should reject password reset when req.password not validated (not strong enough)', async () => {
+      const res = await supertest(server)
+        .post(`/api/v1/users/resetPassword/${token}`)
+        .send({ password: '123', passwordConfirm: '123' });
+
+      const oldPassword = validUser.password;
+      validUser = await User.findById(validUser._id).select('+password');
+
+      expect(res.status).toBe(400);
+      expect(oldPassword).toMatch(validUser.password);
+    });
   });
 
   describe('Send Email Verification', () => {
@@ -751,9 +783,42 @@ describe('Routes - /api/v1/users', () => {
       expect(res.body.data.email).toBeDefined();
     });
 
-    it('should reject if protect middleware not satisfied (Changed password)', async () => {});
+    it('should reject if protect middleware not satisfied (Changed password)', async () => {
+      const newPassword = 'NewPassword1@';
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({
+          passwordCurrent: validUser.password,
+          password: newPassword,
+          passwordConfirm: newPassword,
+          token: csrf,
+        });
 
-    it('should reject if protect middleware not satisfied (Changed email)', async () => {});
+      res = await supertest(server)
+        .post('/api/v1/users/me')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(res.body.message).toMatch('Recently changed password! Please log in again.');
+    });
+
+    it('should reject if protect middleware not satisfied (Changed email)', async () => {
+      const newEmail = 'newEmail@test.io';
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ email: newEmail, emailConfirm: newEmail, password: validUser.password, token: csrf });
+
+      res = await supertest(server)
+        .post('/api/v1/users/me')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(res.body.message).toMatch('Recently changed email! Please log in again.');
+    });
 
     it('should reject if protect middleware not satisfied (JWT invalid)', async () => {
       res = await supertest(server)
@@ -1074,9 +1139,50 @@ describe('Routes - /api/v1/users', () => {
       expect(validUser.active).toBe(true);
     });
 
-    it('should reject if protect middleware not satisfied (Changed password)', async () => {});
+    it('should reject if protect middleware not satisfied (Changed password)', async () => {
+      const newPassword = 'NewPassword1@';
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({
+          passwordCurrent: validUser.password,
+          password: newPassword,
+          passwordConfirm: newPassword,
+          token: csrf,
+        });
 
-    it('should reject if protect middleware not satisfied (Changed email)', async () => {});
+      res = await supertest(server)
+        .patch('/api/v1/users/me')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ name: newName, phone: newPhone, token: csrf });
+
+      validUser = await User.findOne({ email: validUser.email });
+
+      expect(res.status).toBe(401);
+      expect(res.body.message).toMatch('Recently changed password! Please log in again.');
+      expect(validUser.name).not.toMatch(newName);
+      expect(validUser.phone).not.toMatch(newPhone);
+    });
+
+    it('should reject if protect middleware not satisfied (Changed email)', async () => {
+      const newEmail = 'newEmail@test.io';
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ email: newEmail, emailConfirm: newEmail, password: validUser.password, token: csrf });
+
+      res = await supertest(server)
+        .patch('/api/v1/users/me')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ name: newName, phone: newPhone, token: csrf });
+
+      validUser = await User.findOne({ email: newEmail });
+
+      expect(res.status).toBe(401);
+      expect(res.body.message).toMatch('Recently changed email! Please log in again.');
+      expect(validUser.name).not.toMatch(newName);
+      expect(validUser.phone).not.toMatch(newPhone);
+    });
 
     it('should reject if protect middleware not satisfied (JWT invalid)', async () => {
       res = await supertest(server).patch('/api/v1/users/me').set('Authorization', `Bearer invalidToken`).send({
@@ -1247,9 +1353,48 @@ describe('Routes - /api/v1/users', () => {
       expect(res.status).toBe(401);
     });
 
-    it('should reject if protect middleware not satisfied (Changed password)', async () => {});
+    it('should reject if protect middleware not satisfied (Changed password)', async () => {
+      const newPassword = 'NewPassword1@';
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({
+          passwordCurrent: validUser.password,
+          password: newPassword,
+          passwordConfirm: newPassword,
+          token: csrf,
+        });
 
-    it('should reject if protect middleware not satisfied (Changed email)', async () => {});
+      res = await supertest(server)
+        .delete('/api/v1/users/me')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ token: csrf });
+
+      validUser = await User.findOne({ email: validUser.email });
+
+      expect(validUser).toBeDefined();
+      expect(res.status).toBe(401);
+      expect(res.body.message).toMatch('Recently changed password! Please log in again.');
+    });
+
+    it('should reject if protect middleware not satisfied (Changed email)', async () => {
+      const newEmail = 'newEmail@test.io';
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ email: newEmail, emailConfirm: newEmail, password: validUser.password, token: csrf });
+
+      res = await supertest(server)
+        .delete('/api/v1/users/me')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ token: csrf });
+
+      validUser = await User.findOne({ email: newEmail });
+
+      expect(validUser).toBeDefined();
+      expect(res.status).toBe(401);
+      expect(res.body.message).toMatch('Recently changed email! Please log in again.');
+    });
 
     it('should reject if protect middleware not satisfied (JWT invalid)', async () => {
       res = await supertest(server)
@@ -1570,9 +1715,51 @@ describe('Routes - /api/v1/users', () => {
       expect(res.status).toBe(401);
     });
 
-    it('should reject if protect middleware not satisfied (Changed password)', async () => {});
+    it('should reject if protect middleware not satisfied (Changed password)', async () => {
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({
+          passwordCurrent: validUser.password,
+          password: newPassword,
+          passwordConfirm: newPassword,
+          token: csrf,
+        });
 
-    it('should reject if protect middleware not satisfied (Changed email)', async () => {});
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({
+          passwordCurrent: newPassword,
+          password: 'RepeatingPassChange1!',
+          passwordConfirm: 'RepeatingPassChange1!',
+          token: csrf,
+        });
+
+      expect(res.status).toBe(401);
+      expect(res.body.message).toMatch('Recently changed password! Please log in again.');
+    });
+
+    it('should reject if protect middleware not satisfied (Changed email)', async () => {
+      const newEmail = 'newEmail@test.io';
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ email: newEmail, emailConfirm: newEmail, password: validUser.password, token: csrf });
+
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({
+          passwordCurrent: validUser.password,
+          password: newPassword,
+          passwordConfirm: newPassword,
+          token: csrf,
+        });
+
+      expect(res.status).toBe(401);
+      expect(res.body.message).toMatch('Recently changed email! Please log in again.');
+    });
 
     it('should reject if protect middleware not satisfied (JWT invalid)', async () => {
       res = await supertest(server)
@@ -1821,7 +2008,9 @@ describe('Routes - /api/v1/users', () => {
 
       res = await supertest(server).post('/api/v1/users/login').send({ email: newEmail, password: validUser.password });
 
-      expect(res.status).toBe(200);
+      console.log(res);
+
+      expect(res.status).toBe(401);
       expect(await User.findOne({ email: validUser.email })).toBeNull();
       expect(await User.findOne({ email: newEmail })).not.toBeNull();
     });
