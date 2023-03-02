@@ -1,6 +1,5 @@
 import supertest from 'supertest';
 import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
 import { getServer } from '../tempServer.mjs';
 import { User } from '../../models/userModel.mjs';
 
@@ -49,6 +48,7 @@ describe('Routes - /api/v1/users', () => {
 
       await User.create(existingUser);
     });
+
     afterEach(async () => {
       await User.deleteMany({});
       await server.close();
@@ -2008,8 +2008,6 @@ describe('Routes - /api/v1/users', () => {
 
       res = await supertest(server).post('/api/v1/users/login').send({ email: newEmail, password: validUser.password });
 
-      console.log(res);
-
       expect(res.status).toBe(401);
       expect(await User.findOne({ email: validUser.email })).toBeNull();
       expect(await User.findOne({ email: newEmail })).not.toBeNull();
@@ -2107,30 +2105,656 @@ describe('Routes - /api/v1/users', () => {
       expect(await User.findOne({ email: newEmail })).toBeNull();
     });
 
-    it('should reject if protect middleware not satisfied (Changed password)', async () => {});
+    it('should reject if protect middleware not satisfied (Changed password)', async () => {
+      const newPassword = 'NewPassword1@';
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({
+          passwordCurrent: validUser.password,
+          password: newPassword,
+          passwordConfirm: newPassword,
+          token: csrf,
+        });
 
-    it('should reject if protect middleware not satisfied (Changed email)', async () => {});
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ email: newEmail, emailConfirm: newEmail, password: newPassword, token: csrf });
 
+      const userCurrentEmail = await User.findOne({ email: validUser.email });
+      const userNewEmail = await User.findOne({ email: newEmail });
+
+      expect(userCurrentEmail).not.toBeNull();
+      expect(userNewEmail).toBeNull();
+      expect(res.status).toBe(401);
+      expect(res.body.message).toMatch('Recently changed password! Please log in again.');
+    });
+
+    it('should reject if protect middleware not satisfied (Changed email)', async () => {
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ email: newEmail, emailConfirm: newEmail, password: validUser.password, token: csrf });
+
+      const newEmail2 = 'newEmailtake2@test.io';
+
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ email: newEmail2, emailConfirm: newEmail2, password: validUser.password, token: csrf });
+
+      const userNewEmail = await User.findOne({ email: newEmail });
+      const userNewEmail2 = await User.findOne({ email: newEmail2 });
+
+      expect(userNewEmail).not.toBeNull();
+      expect(userNewEmail2).toBeNull();
+      expect(res.status).toBe(401);
+      expect(res.body.message).toMatch('Recently changed email! Please log in again.');
+    });
+
+    it('should reject if protect middleware not satisfied (JWT invalid)', async () => {
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer invalidJWT`)
+        .send({ email: newEmail, emailConfirm: newEmail, password: validUser.password, token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(await User.findOne({ email: validUser.email })).not.toBeNull();
+      expect(await User.findOne({ email: newEmail })).toBeNull();
+    });
+
+    it('should reject if protect middleware not satisfied (JWT missing)', async () => {
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .send({ email: newEmail, emailConfirm: newEmail, password: validUser.password, token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(await User.findOne({ email: validUser.email })).not.toBeNull();
+      expect(await User.findOne({ email: newEmail })).toBeNull();
+    });
+
+    it('should reject if protect middleware not satisfied (JWT expired)', async () => {
+      const actualJWTExpiration = process.env.JWT_EXPIRES_IN;
+      process.env.JWT_EXPIRES_IN = 0;
+
+      res = await supertest(server)
+        .post('/api/v1/users/login')
+        .send({ email: validUser.email, password: validUser.password });
+
+      jwt = res.body.data.token;
+      csrf = res.body.data.csrfToken;
+
+      process.env.JWT_EXPIRES_IN = actualJWTExpiration;
+
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ email: newEmail, emailConfirm: newEmail, password: validUser.password, token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(await User.findOne({ email: validUser.email })).not.toBeNull();
+      expect(await User.findOne({ email: newEmail })).toBeNull();
+    });
+
+    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token mismatch)', async () => {
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ email: newEmail, emailConfirm: newEmail, password: validUser.password, token: 'invalidToken' });
+
+      expect(res.status).toBe(401);
+      expect(await User.findOne({ email: validUser.email })).not.toBeNull();
+      expect(await User.findOne({ email: newEmail })).toBeNull();
+    });
+
+    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token missing)', async () => {
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ email: newEmail, emailConfirm: newEmail, password: validUser.password });
+
+      expect(res.status).toBe(401);
+      expect(await User.findOne({ email: validUser.email })).not.toBeNull();
+      expect(await User.findOne({ email: newEmail })).toBeNull();
+    });
+
+    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token expired)', async () => {
+      validUser = await User.findOne({ email: validUser.email });
+      await validUser.setCSRFTokenToExpired();
+
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ email: newEmail, emailConfirm: newEmail, password: validUser.password, token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(await User.findOne({ email: validUser.email })).not.toBeNull();
+      expect(await User.findOne({ email: newEmail })).toBeNull();
+    });
+  });
+
+  describe('Admin Get All Users', () => {
+    let validUser, server, res, jwt, csrf, userObj;
+
+    beforeEach(async () => {
+      server = await getServer();
+
+      validUser = {
+        name: 'testing testing',
+        email: 'testing1@test.io',
+        emailConfirm: 'testing1@test.io',
+        phone: '5555555555',
+        password: 'Testing1234!@#',
+        passwordConfirm: 'Testing1234!@#',
+      };
+
+      res = await supertest(server).post('/api/v1/users/signup').send(validUser);
+
+      const verifyToken = res.body.token;
+      await supertest(server).get(`/api/v1/users/verifyEmail/${verifyToken}`);
+
+      res = await supertest(server)
+        .post('/api/v1/users/login')
+        .send({ email: validUser.email, password: validUser.password });
+
+      userObj = await User.findOne({ email: validUser.email });
+      await userObj.setRole('admin');
+
+      jwt = res.body.data.token;
+      csrf = res.body.data.csrfToken;
+    });
+
+    afterEach(async () => {
+      await User.deleteMany({});
+      await server.close();
+    });
+
+    it('should successfully complete request and return all users if current logged in user (JWT valid) has role admin and CSRF token valid', async () => {
+      res = await supertest(server).post('/api/v1/users/').set('Authorization', `Bearer ${jwt}`).send({ token: csrf });
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toMatch('success');
+      expect(res.body.numUsers).toBe(1);
+      expect(res.body.data.data).toBeDefined();
+    });
+
+    it('should reject currently logged in user is not an admin', async () => {
+      await userObj.setRole('user');
+
+      res = await supertest(server).post('/api/v1/users/').set('Authorization', `Bearer ${jwt}`).send({ token: csrf });
+
+      expect(res.status).toBe(403);
+      expect(res.body.status).toMatch('failed');
+      expect(res.body.data).not.toBeDefined();
+    });
+
+    it('should reject if protect middleware not satisfied (Changed password)', async () => {
+      const newPassword = 'NewPassword1@';
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({
+          passwordCurrent: validUser.password,
+          password: newPassword,
+          passwordConfirm: newPassword,
+          token: csrf,
+        });
+
+      res = await supertest(server).post('/api/v1/users/').set('Authorization', `Bearer ${jwt}`).send({ token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(res.body.status).toMatch('failed');
+      expect(res.body.data).not.toBeDefined();
+    });
+
+    it('should reject if protect middleware not satisfied (Changed email)', async () => {
+      const newEmail = 'newEmail@test.io';
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ email: newEmail, emailConfirm: newEmail, password: validUser.password, token: csrf });
+
+      res = await supertest(server).post('/api/v1/users/').set('Authorization', `Bearer ${jwt}`).send({ token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(res.body.status).toMatch('failed');
+      expect(res.body.data).not.toBeDefined();
+    });
+
+    it('should reject if protect middleware not satisfied (JWT invalid)', async () => {
+      res = await supertest(server)
+        .post('/api/v1/users/')
+        .set('Authorization', `Bearer invalidToken`)
+        .send({ token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(res.body.status).toMatch('failed');
+      expect(res.body.data).not.toBeDefined();
+    });
+
+    it('should reject if protect middleware not satisfied (JWT missing)', async () => {
+      res = await supertest(server).post('/api/v1/users/').send({ token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(res.body.status).toMatch('failed');
+      expect(res.body.data).not.toBeDefined();
+    });
+
+    it('should reject if protect middleware not satisfied (JWT expired)', async () => {
+      const actualJWTExpiration = process.env.JWT_EXPIRES_IN;
+      process.env.JWT_EXPIRES_IN = 0;
+
+      res = await supertest(server)
+        .post('/api/v1/users/login')
+        .send({ email: validUser.email, password: validUser.password });
+
+      jwt = res.body.data.token;
+      csrf = res.body.data.csrfToken;
+
+      process.env.JWT_EXPIRES_IN = actualJWTExpiration;
+
+      res = await supertest(server).post('/api/v1/users/').set('Authorization', `Bearer ${jwt}`).send({ token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(res.body.status).toMatch('failed');
+      expect(res.body.data).not.toBeDefined();
+    });
+
+    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token mismatch)', async () => {
+      res = await supertest(server)
+        .post('/api/v1/users/')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ token: 'invalidToken' });
+
+      expect(res.status).toBe(401);
+      expect(res.body.status).toMatch('failed');
+      expect(res.body.data).not.toBeDefined();
+    });
+
+    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token missing)', async () => {
+      res = await supertest(server).post('/api/v1/users/').set('Authorization', `Bearer ${jwt}`);
+
+      expect(res.status).toBe(401);
+      expect(res.body.status).toMatch('failed');
+      expect(res.body.data).not.toBeDefined();
+    });
+
+    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token expired)', async () => {
+      await userObj.setCSRFTokenToExpired();
+
+      res = await supertest(server).post('/api/v1/users/').set('Authorization', `Bearer ${jwt}`).send({ token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(res.body.status).toMatch('failed');
+      expect(res.body.data).not.toBeDefined();
+    });
+  });
+
+  describe('Admin Get Single User', () => {
+    let server, validUser, queryUser, userObj, res, jwt, csrf;
+
+    beforeEach(async () => {
+      server = await getServer();
+
+      validUser = {
+        name: 'testing testing',
+        email: 'testing1@test.io',
+        emailConfirm: 'testing1@test.io',
+        phone: '5555555555',
+        password: 'Testing1234!@#',
+        passwordConfirm: 'Testing1234!@#',
+      };
+
+      queryUser = {
+        name: 'test test',
+        email: 'testing2@test.io',
+        emailConfirm: 'testing2@test.io',
+        phone: '5555555555',
+        password: 'Testing1234!@#',
+        passwordConfirm: 'Testing1234!@#',
+      };
+
+      await supertest(server).post('/api/v1/users/signup').send(queryUser);
+      res = await supertest(server).post('/api/v1/users/signup').send(validUser);
+
+      const verifyToken = res.body.token;
+      await supertest(server).get(`/api/v1/users/verifyEmail/${verifyToken}`);
+
+      res = await supertest(server)
+        .post('/api/v1/users/login')
+        .send({ email: validUser.email, password: validUser.password });
+
+      userObj = await User.findOne({ email: validUser.email });
+
+      await userObj.setRole('admin');
+
+      jwt = res.body.data.token;
+      csrf = res.body.data.csrfToken;
+    });
+
+    afterEach(async () => {
+      await User.deleteMany({});
+      await server.close();
+    });
+
+    it('should successfully return user information for id if currently logged in user (JWT valid) is an admin (role) and CSRF token valid', async () => {
+      res = await supertest(server)
+        .post(`/api/v1/users/${queryUser.email}`)
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ token: csrf });
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toMatch('success');
+      expect(res.body.data.data.email).toMatch(queryUser.email);
+    });
+
+    it('should reject if the req.params.email is not an email address associated with an account', async () => {
+      res = await supertest(server)
+        .post(`/api/v1/users/invalidEmail@test.io`)
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ token: csrf });
+
+      if (!user) return next(new AppError('No user found for the email provided.'), 404);
+
+      expect(res.status).toBe(404);
+      expect(res.message).toBe('No user found for the email provided.');
+      expect(res.body.data).not.toBeDefined();
+    });
+
+    it('should reject if protect middleware not satisfied (Changed password)', async () => {
+      const newPassword = 'NewPassword1@';
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({
+          passwordCurrent: validUser.password,
+          password: newPassword,
+          passwordConfirm: newPassword,
+          token: csrf,
+        });
+
+      res = await supertest(server)
+        .post(`/api/v1/users/${queryUser.email}`)
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(res.body.status).toMatch('failed');
+      expect(res.body.data).not.toBeDefined();
+    });
+
+    it('should reject if protect middleware not satisfied (Changed email)', async () => {
+      const newEmail = 'newEmail@test.io';
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ email: newEmail, emailConfirm: newEmail, password: validUser.password, token: csrf });
+
+      res = await supertest(server)
+        .post(`/api/v1/users/${queryUser.email}`)
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(res.body.status).toMatch('failed');
+      expect(res.body.data).not.toBeDefined();
+    });
+
+    it('should reject if protect middleware not satisfied (JWT invalid)', async () => {
+      res = await supertest(server)
+        .post(`/api/v1/users/${queryUser.email}`)
+        .set('Authorization', `Bearer invalidJWT`)
+        .send({ token: csrf });
+    });
+
+    it('should reject if protect middleware not satisfied (JWT missing)', async () => {
+      res = await supertest(server).post(`/api/v1/users/${queryUser.email}`).send({ token: csrf });
+    });
+
+    it('should reject if protect middleware not satisfied (JWT expired)', async () => {
+      const actualJWTExpiration = process.env.JWT_EXPIRES_IN;
+      process.env.JWT_EXPIRES_IN = 0;
+
+      res = await supertest(server)
+        .post('/api/v1/users/login')
+        .send({ email: validUser.email, password: validUser.password });
+
+      jwt = res.body.data.token;
+      csrf = res.body.data.csrfToken;
+
+      process.env.JWT_EXPIRES_IN = actualJWTExpiration;
+
+      res = await supertest(server)
+        .post(`/api/v1/users/${queryUser.email}`)
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(res.body.status).toMatch('failed');
+      expect(res.body.data).not.toBeDefined();
+    });
+
+    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token mismatch)', async () => {
+      res = await supertest(server)
+        .post(`/api/v1/users/${queryUser.email}`)
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ token: 'invalidCSRF' });
+
+      expect(res.status).toBe(401);
+      expect(res.body.status).toMatch('failed');
+      expect(res.body.data).not.toBeDefined();
+    });
+
+    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token missing)', async () => {
+      res = await supertest(server).post(`/api/v1/users/${queryUser.email}`).set('Authorization', `Bearer ${jwt}`);
+
+      expect(res.status).toBe(401);
+      expect(res.body.status).toMatch('failed');
+      expect(res.body.data).not.toBeDefined();
+    });
+
+    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token expired)', async () => {
+      await userObj.setCSRFTokenToExpired();
+
+      res = await supertest(server)
+        .post(`/api/v1/users/${queryUser.email}`)
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(res.body.status).toMatch('failed');
+      expect(res.body.data).not.toBeDefined();
+    });
+  });
+
+  describe('Admin Update User', () => {
+    let server, validUser, queryUser, userObj, res, jwt, csrf;
+    beforeEach(async () => {
+      server = await getServer();
+
+      validUser = {
+        name: 'testing testing',
+        email: 'testing1@test.io',
+        emailConfirm: 'testing1@test.io',
+        phone: '5555555555',
+        password: 'Testing1234!@#',
+        passwordConfirm: 'Testing1234!@#',
+      };
+
+      queryUser = {
+        name: 'test test',
+        email: 'testing2@test.io',
+        emailConfirm: 'testing2@test.io',
+        phone: '5555555555',
+        password: 'Testing1234!@#',
+        passwordConfirm: 'Testing1234!@#',
+      };
+
+      await supertest(server).post('/api/v1/users/signup').send(queryUser);
+      res = await supertest(server).post('/api/v1/users/signup').send(validUser);
+
+      const verifyToken = res.body.token;
+      await supertest(server).get(`/api/v1/users/verifyEmail/${verifyToken}`);
+
+      res = await supertest(server)
+        .post('/api/v1/users/login')
+        .send({ email: validUser.email, password: validUser.password });
+
+      userObj = await User.findOne({ email: validUser.email });
+
+      await userObj.setRole('admin');
+
+      jwt = res.body.data.token;
+      csrf = res.body.data.csrfToken;
+    });
+
+    afterEach(async () => {
+      await User.deleteMany({});
+      await server.close();
+    });
+
+    it('should update user successfully if middleware conditions satisfied, and req.body.phone is valid', async () => {});
+    it('should update user successfully if middleware conditions satisfied, and req.body.name is valid', async () => {});
+    it('should update user successfully if middleware conditions satisfied, and req.body.name and req.body.phone are valid', async () => {});
+    it('should ignore req.body.email and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {});
+    it('should ignore req.body.emailConfirm and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {});
+    it('should ignore req.body.emailChangedAt and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {});
+    it('should ignore req.body.previousEmails and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {});
+    it('should ignore req.body.role and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {});
+    it('should ignore req.body.password and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {});
+    it('should ignore req.body.passwordConfirm and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {});
+    it('should ignore req.body.passwordChangedAt and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {});
+    it('should ignore req.body.passwordResetToken and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {});
+    it('should ignore req.body.passwordResetTokenExpires and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {});
+    it('should ignore req.body.csrfToken and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {});
+    it('should ignore req.body.csrfTokenExpires and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {});
+    it('should ignore req.body.verified and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {});
+    it('should ignore req.body.active and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {});
+
+    it('should reject if req.body.name is not a valid name');
+    it('should reject if req.body.phone is not a valid phone number');
+
+    it('should reject if protect middleware not satisfied (Changed password)', async () => {
+      const newPassword = 'NewPassword1@';
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({
+          passwordCurrent: validUser.password,
+          password: newPassword,
+          passwordConfirm: newPassword,
+          token: csrf,
+        });
+    });
+    it('should reject if protect middleware not satisfied (Changed email)', async () => {
+      const newEmail = 'newEmail@test.io';
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ email: newEmail, emailConfirm: newEmail, password: validUser.password, token: csrf });
+    });
     it('should reject if protect middleware not satisfied (JWT invalid)', async () => {});
-
     it('should reject if protect middleware not satisfied (JWT missing)', async () => {});
+    it('should reject if protect middleware not satisfied (JWT expired)', async () => {
+      const actualJWTExpiration = process.env.JWT_EXPIRES_IN;
+      process.env.JWT_EXPIRES_IN = 0;
 
-    it('should reject if protect middleware not satisfied (JWT expired)', async () => {});
+      res = await supertest(server)
+        .post('/api/v1/users/login')
+        .send({ email: validUser.email, password: validUser.password });
 
+      jwt = res.body.data.token;
+      csrf = res.body.data.csrfToken;
+      process.env.JWT_EXPIRES_IN = actualJWTExpiration;
+    });
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token mismatch)', async () => {});
-
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token missing)', async () => {});
-
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token expired)', async () => {});
   });
 
-  describe('Admin Get All Users', () => {});
+  describe('Admin Delete User', () => {
+    let server, validUser, queryUser, userObj, res, jwt, csrf;
+    beforeEach(async () => {
+      server = await getServer();
 
-  describe('Admin Get Single User', () => {});
+      validUser = {
+        name: 'testing testing',
+        email: 'testing1@test.io',
+        emailConfirm: 'testing1@test.io',
+        phone: '5555555555',
+        password: 'Testing1234!@#',
+        passwordConfirm: 'Testing1234!@#',
+      };
 
-  describe('Admin Update User', () => {});
+      queryUser = {
+        name: 'test test',
+        email: 'testing2@test.io',
+        emailConfirm: 'testing2@test.io',
+        phone: '5555555555',
+        password: 'Testing1234!@#',
+        passwordConfirm: 'Testing1234!@#',
+      };
 
-  describe('Admin Delete User', () => {});
+      await supertest(server).post('/api/v1/users/signup').send(queryUser);
+      res = await supertest(server).post('/api/v1/users/signup').send(validUser);
+
+      const verifyToken = res.body.token;
+      await supertest(server).get(`/api/v1/users/verifyEmail/${verifyToken}`);
+
+      res = await supertest(server)
+        .post('/api/v1/users/login')
+        .send({ email: validUser.email, password: validUser.password });
+
+      userObj = await User.findOne({ email: validUser.email });
+
+      await userObj.setRole('admin');
+
+      jwt = res.body.data.token;
+      csrf = res.body.data.csrfToken;
+    });
+
+    afterEach(async () => {
+      await User.deleteMany({});
+      await server.close();
+    });
+    it('should reject if protect middleware not satisfied (Changed password)', async () => {
+      const newPassword = 'NewPassword1@';
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({
+          passwordCurrent: validUser.password,
+          password: newPassword,
+          passwordConfirm: newPassword,
+          token: csrf,
+        });
+    });
+    it('should reject if protect middleware not satisfied (Changed email)', async () => {
+      const newEmail = 'newEmail@test.io';
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ email: newEmail, emailConfirm: newEmail, password: validUser.password, token: csrf });
+    });
+    it('should reject if protect middleware not satisfied (JWT invalid)', async () => {});
+    it('should reject if protect middleware not satisfied (JWT missing)', async () => {});
+    it('should reject if protect middleware not satisfied (JWT expired)', async () => {
+      const actualJWTExpiration = process.env.JWT_EXPIRES_IN;
+      process.env.JWT_EXPIRES_IN = 0;
+
+      res = await supertest(server)
+        .post('/api/v1/users/login')
+        .send({ email: validUser.email, password: validUser.password });
+
+      jwt = res.body.data.token;
+      csrf = res.body.data.csrfToken;
+      process.env.JWT_EXPIRES_IN = actualJWTExpiration;
+    });
+    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token mismatch)', async () => {});
+    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token missing)', async () => {});
+    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token expired)', async () => {});
+  });
 
   afterAll(async () => {
     await User.deleteMany({});

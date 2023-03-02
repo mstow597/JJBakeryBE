@@ -26,7 +26,7 @@ export const getMe = (req, res, next) => {
 };
 
 export const updateMe = catchAsync(async (req, res, next) => {
-  const user = await User.findOneAndUpdate(req.user._id, filterObj(req.body, 'name', 'phone'), {
+  const user = await User.findByIdAndUpdate(req.user._id, filterObj(req.body, 'name', 'phone'), {
     new: true,
     runValidators: true,
   });
@@ -37,7 +37,7 @@ export const updateMe = catchAsync(async (req, res, next) => {
 });
 
 export const deleteMe = catchAsync(async (req, res, next) => {
-  const user = await User.findOneAndUpdate(req.user._id, { active: false, csrfTokenExpires: new Date(0) });
+  const user = await User.findByIdAndUpdate(req.user._id, { active: false, csrfTokenExpires: new Date(0) });
 
   if (!user) return next(new AppError('Unable to inactivate your account. Please log back in and try again.'));
 
@@ -63,15 +63,15 @@ export const getAllUsers = catchAsync(async (req, res, next) => {
 });
 
 export const getUser = catchAsync(async (req, res, next) => {
-  const user = await User.find(req.params.id);
+  const user = await User.findOne({ email: req.params.email });
 
-  if (!user) return next(new AppError('No user found for given id.'), 404);
+  if (!user) return next(new AppError('No user found for the email provided.'), 404);
 
   res.status(200).json({ status: 'success', data: { data: user } });
 });
 
 export const updateUser = catchAsync(async (req, res, next) => {
-  const user = await User.findOneAndUpdate(req.params.id, filterObj(req.body, 'name', 'phone'), {
+  const user = await User.findOneAndUpdate({ email: req.params.email }, filterObj(req.body, 'name', 'phone'), {
     new: true,
     runValidators: true,
   });
@@ -81,7 +81,7 @@ export const updateUser = catchAsync(async (req, res, next) => {
 });
 
 export const deleteUser = catchAsync(async (req, res, next) => {
-  const user = await User.findOneAndUpdate(req.params.id, { active: false });
+  const user = await User.findOneAndUpdate({ email: req.params.email }, { active: false });
 
   if (!user) return next(new AppError('No user found for given id'), 404);
 

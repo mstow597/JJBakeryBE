@@ -47,7 +47,7 @@ router.patch('/me/updateEmail', protect, checkValidCSRFToken, updateEmail);
 // Protected admin only routes
 router.post('/', protect, restrictTo('admin'), checkValidCSRFToken, getAllUsers);
 router
-  .route('/:id')
+  .route('/:email')
   .post(protect, restrictTo('admin'), checkValidCSRFToken, getUser)
   .patch(protect, restrictTo('admin'), checkValidCSRFToken, checkForEmailPassword, updateUser)
   .delete(protect, restrictTo('admin'), checkValidCSRFToken, deleteUser);

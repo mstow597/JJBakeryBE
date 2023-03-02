@@ -110,8 +110,8 @@ userSchema.methods.createEmailVerificationToken = function () {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 if (process.env.NODE_ENV === 'test') {
-  userSchema.methods.setRoleAsAdmin = async function () {
-    this.role = 'admin';
+  userSchema.methods.setRole = async function (role) {
+    this.role = role;
     await this.save({ validateBeforeSave: false });
   };
 
