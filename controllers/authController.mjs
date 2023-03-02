@@ -73,8 +73,11 @@ const generateAndSendLink = async (req, res, statusCode, option) => {
   if (!user)
     return res.status(statusCode).json({
       status: 'success',
-      message: process.env.NODE_ENV === 'test' ? 'Faking link sent to email - not truly sent' : 'Link sent to email!',
-    }); // protection from account sniffing
+      message:
+        process.env.NODE_ENV === 'test'
+          ? 'Faking link sent to email - not truly sent'
+          : process.env.DUPLICATE_EMAIL_MESSAGE,
+    });
 
   const routeType = option === 'email' || option === 'newUser' ? 'verifyEmail' : 'resetPassword';
   if (option === 'email' || option === 'newUser') {
@@ -91,13 +94,10 @@ const generateAndSendLink = async (req, res, statusCode, option) => {
     await user.save({ validateBeforeSave: false });
   }
 
-  const responseMessage =
-    option === 'newUser'
-      ? `You're account was successfully created. Prior to accessing you account, you must verify your email address with the link provided in a message sent to your email address`
-      : 'Link sent to email!';
-
   if (process.env.NODE_ENV === 'test')
-    return res.status(statusCode).json({ status: 'success', message: responseMessage + '(NODE_ENV test only)', token });
+    return res
+      .status(statusCode)
+      .json({ status: 'success', message: process.env.DUPLICATE_EMAIL_MESSAGE + '(NODE_ENV test only)', token });
 
   try {
     const linkType = option === 'email' || option === 'newUser' ? 'email verification' : 'password reset';
@@ -154,6 +154,9 @@ export const restrictTo = (...roles) => {
  * @returns undefined (invokes next() middleware function)
  */
 export const signup = catchAsync(async (req, res, next) => {
+  const existingUser = await User.findOne({ email: req.body.email });
+  if (existingUser) return res.status(200).json({ status: 'success', message: process.env.DUPLICATE_EMAIL_MESSAGE });
+
   const user = await User.create({
     name: req.body.name,
     email: req.body.email,
@@ -163,7 +166,7 @@ export const signup = catchAsync(async (req, res, next) => {
     passwordConfirm: req.body.passwordConfirm,
   });
 
-  await user.save({ validateBeforeSave: false });
+  // await user.save({ validateBeforeSave: false });
 
   await generateAndSendLink(req, res, 201, 'newUser');
 });
@@ -264,11 +267,14 @@ export const protect = catchAsync(async (req, res, next) => {
     next(err);
   }
 
-  const user = await User.findById(decoded.id);
+  const user = await User.findById(decoded.id).select('+password');
   if (!user) return next(new AppError('Invalid token, user does not exist, or user inactivated.', 401));
 
   if (user.changedPasswordAfter(decoded.iat))
     return next(new AppError('Recently changed password! Please log in again.', 401));
+
+  if (user.changedEmailAfter(decoded.iat))
+    return next(new AppError('Recently changed email! Please log in again.', 401));
 
   req.user = user;
   next();
@@ -405,39 +411,27 @@ export const updatePassword = catchAsync(async (req, res, next) => {
  */
 export const updateEmail = catchAsync(async (req, res, next) => {
   if (!req.body.email || !req.body.emailConfirm || !req.body.password)
+    return next(new AppError('Cannot update email. Missing one or more of: email, emailConfirm, password.', 401));
+
+  if (!(req.body.email === req.body.emailConfirm))
     return next(
-      new AppError(
-        'Cannot update email. Missing one or more of: email, emailConfirm, password. Please resubmit will all of the required fields.'
-      )
+      new AppError('Email and email confirmation mismatch. Please check these values are the same and resubmit.', 401)
     );
 
   if (!(await req.user.correctPassword(req.body.password, req.user.password)))
-    return next(new AppError('Incorrect password. Please resubmit with your correct password.'));
+    return next(new AppError('Incorrect password. Please resubmit with your correct password.', 401));
 
-  const updatedUser = await User.findByIdAndUpdate(
-    req.user._id,
-    { email: req.body.email, emailConfirm: req.body.emailConfirm },
-    { runValidators: true }
-  );
+  const existingUser = await User.findOne({ email: req.body.email });
+  if (existingUser) return res.status(200).json({ status: 'success', message: process.env.DUPLICATE_EMAIL_MESSAGE });
 
-  res.status(200).json({ status: 'success', data: { user: updatedUser } });
-});
+  let updatedUser = await User.findById(req.user._id);
+  updatedUser.previousEmails.push(updatedUser.email);
+  updatedUser.emailChangedAt = Date.now();
+  updatedUser.email = req.body.email;
+  updatedUser.emailConfirm = req.body.emailConfirm;
+  updatedUser.verified = false;
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////// TEST ONLY MIDDLEWARE ////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////
-/**
- * @param {*} req Express middleware request object
- * @param {*} res Express middleware response object
- * @param {*} next Express middleware next object
- * @description
- * - Middleware function strictly for testing purposes only (see userRouter.mjs for implementation - conditionally adding this route to router)
- * - Setting a user to admin in production will be restricted to DBA (must manually switch user to admin) for security implications.
- * @returns undefined (sends response to user)
- */
-export const setAsAdmin = catchAsync(async (req, res, next) => {
-  const user = await User.findOne({ email: req.body.email });
-  user.role = 'admin';
-  await user.save({ validateBeforeSave: false });
-  res.status(200).json({ status: 'success', data: { user } });
+  await updatedUser.save();
+
+  await generateAndSendLink(req, res, 200, 'email');
 });

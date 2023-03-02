@@ -29,6 +29,8 @@ const userSchema = new mongoose.Schema({
       },
     },
   },
+  emailChangedAt: { type: Date },
+  previousEmails: [String],
   phone: {
     type: String,
     required: [true, 'User must have phone number'],
@@ -78,6 +80,12 @@ userSchema.methods.correctPassword = async function (candidatePassword, userPass
 userSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
   if (!this.passwordChangedAt) return false;
   const changedTimeStamp = this.passwordChangedAt.getTime() / 1000;
+  return JWTTimestamp < changedTimeStamp;
+};
+
+userSchema.methods.changedEmailAfter = function (JWTTimestamp) {
+  if (!this.emailChangedAt) return false;
+  const changedTimeStamp = this.emailChangedAt.getTime() / 1000;
   return JWTTimestamp < changedTimeStamp;
 };
 
@@ -161,13 +169,12 @@ userSchema.pre(/^find/, function (next) {
 });
 
 userSchema.pre('save', async function (next) {
-  // Only run this function if password was modified.
-  if (!this.isModified('password')) return next();
-  // Hash the password with cost of 12
-  this.password = await bcrypt.hash(this.password, 12);
-  // Delete the passwordConfirm field
-  this.passwordConfirm = undefined;
   this.emailConfirm = undefined;
+
+  if (!this.isModified('password')) return next(); // isModified(<arg>) always returns true for NEW documents
+
+  this.password = await bcrypt.hash(this.password, 12);
+  this.passwordConfirm = undefined;
   next();
 });
 

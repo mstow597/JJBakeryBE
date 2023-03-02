@@ -13,8 +13,7 @@ describe('Routes - /api/v1/users', () => {
     const expectedSuccessResponseObject = {
       status: 'success',
       message:
-        `You're account was successfully created. Prior to accessing you account, you must verify your email address with the link provided in a message sent to your email address` +
-        '(NODE_ENV test only)',
+        'An email has been sent to the provided email address with instructions on how to proceed with account setup/updating.(NODE_ENV test only)',
     };
 
     const expectedUser = {
@@ -58,11 +57,7 @@ describe('Routes - /api/v1/users', () => {
     it('should reject user signup when desired email already in use by an account in database', async () => {
       const res = await supertest(server).post('/api/v1/users/signup').send(existingUser);
 
-      expect(res.status).toBe(400);
-      expect(res.body).toMatchObject({
-        status: 'failed',
-        message: `Sorry we were unable to create your account. If you are unsure if an account exists for the requested email address, consider submitting a password reset or email verification request.`,
-      });
+      expect(res.status).toBe(200);
     });
 
     it('should create a new user successfully (no duplicate key)', async () => {
@@ -423,7 +418,7 @@ describe('Routes - /api/v1/users', () => {
       expect(res.status).toBe(200);
       expect(res.body.token).toBeDefined();
       expect(res.body.status).toMatch('success');
-      expect(res.body.message).toMatch('Link sent to email!(NODE_ENV test only)');
+      expect(res.body.message).toMatch(process.env.DUPLICATE_EMAIL_MESSAGE);
     });
 
     it('should fail but fake sending message if req.body.email is not associated with an account', async () => {
@@ -479,11 +474,13 @@ describe('Routes - /api/v1/users', () => {
 
       expect(res.status).toBe(200);
     });
+
     it('should reject request when token is invalid', async () => {
       const res = await supertest(server).get(`/api/v1/users/resetPassword/invalidToken`);
 
       expect(res.status).toBe(400);
     });
+
     it('should reject request when token is expired', async () => {
       const actualTokenExpiration = process.env.TOKEN_EXPIRATION;
       process.env.TOKEN_EXPIRATION = 0;
@@ -560,6 +557,7 @@ describe('Routes - /api/v1/users', () => {
 
       expect(res.status).toBe(400);
     });
+
     it('should reject password reset when req.password missing', async () => {});
     it('should reject password reset when req.passwordConfirm missing', async () => {});
     it('should reject password reset when req.password not validated (not strong enough)', async () => {});
@@ -596,8 +594,9 @@ describe('Routes - /api/v1/users', () => {
       expect(res.status).toBe(200);
       expect(res.body.token).toBeDefined();
       expect(res.body.status).toMatch('success');
-      expect(res.body.message).toMatch('Link sent to email!(NODE_ENV test only)');
+      expect(res.body.message).toMatch(process.env.DUPLICATE_EMAIL_MESSAGE);
     });
+
     it('should fake (but not truly send) that email is sent if email is not associated with an existing account', async () => {
       const res = await supertest(server)
         .post('/api/v1/users/sendEmailVerification')
@@ -674,6 +673,7 @@ describe('Routes - /api/v1/users', () => {
       expect(validUser.emailVerificationToken).toBeDefined();
       expect(validUser.emailVerificationTokenExpires).toBeDefined();
     });
+
     it('should reject verification of email when user token is invalid', async () => {
       let res = await supertest(server).post('/api/v1/users/signup').send(validUser);
 
@@ -750,6 +750,10 @@ describe('Routes - /api/v1/users', () => {
       expect(res.body.data.phone).toBeDefined();
       expect(res.body.data.email).toBeDefined();
     });
+
+    it('should reject if protect middleware not satisfied (Changed password)', async () => {});
+
+    it('should reject if protect middleware not satisfied (Changed email)', async () => {});
 
     it('should reject if protect middleware not satisfied (JWT invalid)', async () => {
       res = await supertest(server)
@@ -1070,6 +1074,10 @@ describe('Routes - /api/v1/users', () => {
       expect(validUser.active).toBe(true);
     });
 
+    it('should reject if protect middleware not satisfied (Changed password)', async () => {});
+
+    it('should reject if protect middleware not satisfied (Changed email)', async () => {});
+
     it('should reject if protect middleware not satisfied (JWT invalid)', async () => {
       res = await supertest(server).patch('/api/v1/users/me').set('Authorization', `Bearer invalidToken`).send({
         name: newName,
@@ -1238,6 +1246,11 @@ describe('Routes - /api/v1/users', () => {
 
       expect(res.status).toBe(401);
     });
+
+    it('should reject if protect middleware not satisfied (Changed password)', async () => {});
+
+    it('should reject if protect middleware not satisfied (Changed email)', async () => {});
+
     it('should reject if protect middleware not satisfied (JWT invalid)', async () => {
       res = await supertest(server)
         .delete('/api/v1/users/me')
@@ -1250,6 +1263,7 @@ describe('Routes - /api/v1/users', () => {
       expect(validUser.active).toBe(true);
       expect(res.status).toBe(401);
     });
+
     it('should reject if protect middleware not satisfied (JWT missing)', async () => {
       res = await supertest(server).delete('/api/v1/users/me').send({ token: csrf });
 
@@ -1259,6 +1273,7 @@ describe('Routes - /api/v1/users', () => {
       expect(validUser.active).toBe(true);
       expect(res.status).toBe(401);
     });
+
     it('should reject if protect middleware not satisfied (JWT expired)', async () => {
       const actualJWTExpiration = process.env.JWT_EXPIRES_IN;
       process.env.JWT_EXPIRES_IN = 0;
@@ -1282,6 +1297,7 @@ describe('Routes - /api/v1/users', () => {
       expect(validUser).toBeDefined();
       expect(validUser.active).toBe(true);
     });
+
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token mismatch)', async () => {
       res = await supertest(server)
         .delete('/api/v1/users/me')
@@ -1294,6 +1310,7 @@ describe('Routes - /api/v1/users', () => {
       expect(validUser.active).toBe(true);
       expect(res.status).toBe(401);
     });
+
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token missing)', async () => {
       res = await supertest(server).delete('/api/v1/users/me').set('Authorization', `Bearer ${jwt}`);
 
@@ -1303,6 +1320,7 @@ describe('Routes - /api/v1/users', () => {
       expect(validUser.active).toBe(true);
       expect(res.status).toBe(401);
     });
+
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token expired)', async () => {
       validUser = await User.findOne({ email: validUser.email });
       await validUser.setCSRFTokenToExpired();
@@ -1364,8 +1382,6 @@ describe('Routes - /api/v1/users', () => {
           token: csrf,
         });
 
-      console.log(res);
-
       expect(res.status).toBe(200);
       expect(res.body.message).toMatch('Password updated successfully.');
 
@@ -1383,6 +1399,7 @@ describe('Routes - /api/v1/users', () => {
       expect(cookiesObj.jwt).toBeDefined();
       expect(cookiesObj.csrf).toBeDefined();
     });
+
     it('should reject updating current user password if hashed req.body.currentPassword !== user.password', async () => {
       res = await supertest(server)
         .patch('/api/v1/users/me/updatePassword')
@@ -1393,8 +1410,6 @@ describe('Routes - /api/v1/users', () => {
           passwordConfirm: newPassword,
           token: csrf,
         });
-
-      // console.log(res);
 
       expect(res.status).toBe(401);
 
@@ -1412,10 +1427,9 @@ describe('Routes - /api/v1/users', () => {
         });
       }
 
-      // console.log(res);
-
       expect(res.status).toBe(401);
     });
+
     it('should reject updating current user password if req.body.currentPassword missing', async () => {
       res = await supertest(server)
         .patch('/api/v1/users/me/updatePassword')
@@ -1446,8 +1460,6 @@ describe('Routes - /api/v1/users', () => {
         .patch('/api/v1/users/me/updatePassword')
         .set('Authorization', `Bearer ${jwt}`)
         .send({ passwordCurrent: validUser.password, passwordConfirm: newPassword, token: csrf });
-
-      // console.log(res);
 
       expect(res.status).toBe(400);
 
@@ -1526,6 +1538,7 @@ describe('Routes - /api/v1/users', () => {
 
       expect(res.status).toBe(401);
     });
+
     it('should reject updating current user password if req.body.password not strong enough (does not pass validation)', async () => {
       const weakPassword = '123';
       res = await supertest(server)
@@ -1556,18 +1569,23 @@ describe('Routes - /api/v1/users', () => {
 
       expect(res.status).toBe(401);
     });
+
+    it('should reject if protect middleware not satisfied (Changed password)', async () => {});
+
+    it('should reject if protect middleware not satisfied (Changed email)', async () => {});
+
     it('should reject if protect middleware not satisfied (JWT invalid)', async () => {
       res = await supertest(server)
         .patch('/api/v1/users/me/updatePassword')
         .set('Authorization', `Bearer incorrectJWT`)
         .send({
           passwordCurrent: validUser.password,
-          password: weakPassword,
-          passwordConfirm: weakPassword,
+          password: newPassword,
+          passwordConfirm: newPassword,
           token: csrf,
         });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(401);
 
       res = await supertest(server).post('/api/v1/users/login').send({ email: validUser.email, password: newPassword });
 
@@ -1585,15 +1603,16 @@ describe('Routes - /api/v1/users', () => {
 
       expect(res.status).toBe(401);
     });
+
     it('should reject if protect middleware not satisfied (JWT missing)', async () => {
       res = await supertest(server).patch('/api/v1/users/me/updatePassword').send({
         passwordCurrent: validUser.password,
-        password: weakPassword,
-        passwordConfirm: weakPassword,
+        password: newPassword,
+        passwordConfirm: newPassword,
         token: csrf,
       });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(401);
 
       res = await supertest(server).post('/api/v1/users/login').send({ email: validUser.email, password: newPassword });
 
@@ -1611,19 +1630,61 @@ describe('Routes - /api/v1/users', () => {
 
       expect(res.status).toBe(401);
     });
-    it('should reject if protect middleware not satisfied (JWT expired)', async () => {});
+
+    it('should reject if protect middleware not satisfied (JWT expired)', async () => {
+      const actualJWTExpiration = process.env.JWT_EXPIRES_IN;
+      process.env.JWT_EXPIRES_IN = 0;
+
+      res = await supertest(server)
+        .post('/api/v1/users/login')
+        .send({ email: validUser.email, password: validUser.password });
+
+      jwt = res.body.data.token;
+      csrf = res.body.data.csrfToken;
+
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({
+          passwordCurrent: validUser.password,
+          password: newPassword,
+          passwordConfirm: newPassword,
+          token: csrf,
+        });
+
+      process.env.JWT_EXPIRES_IN = actualJWTExpiration;
+
+      expect(res.status).toBe(401);
+
+      res = await supertest(server).post('/api/v1/users/login').send({ email: validUser.email, password: newPassword });
+
+      const cookies = res.header['set-cookie'];
+      const cookiesObj = {};
+
+      if (cookies) {
+        cookies.forEach((element) => {
+          const array = element.split(/=/);
+          cookiesObj[array[0]] = array.slice(1).join('=');
+          expect(cookiesObj.jwt).not.toBeDefined();
+          expect(cookiesObj.csrf).not.toBeDefined();
+        });
+      }
+
+      expect(res.status).toBe(401);
+    });
+
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token mismatch)', async () => {
       res = await supertest(server)
         .patch('/api/v1/users/me/updatePassword')
         .set('Authorization', `Bearer ${jwt}`)
         .send({
           passwordCurrent: validUser.password,
-          password: weakPassword,
-          passwordConfirm: weakPassword,
+          password: newPassword,
+          passwordConfirm: newPassword,
           token: 'mismatchedCSRF',
         });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(401);
 
       res = await supertest(server).post('/api/v1/users/login').send({ email: validUser.email, password: newPassword });
 
@@ -1641,17 +1702,18 @@ describe('Routes - /api/v1/users', () => {
 
       expect(res.status).toBe(401);
     });
+
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token missing)', async () => {
       res = await supertest(server)
         .patch('/api/v1/users/me/updatePassword')
         .set('Authorization', `Bearer ${jwt}`)
         .send({
           passwordCurrent: validUser.password,
-          password: weakPassword,
-          passwordConfirm: weakPassword,
+          password: newPassword,
+          passwordConfirm: newPassword,
         });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(401);
 
       res = await supertest(server).post('/api/v1/users/login').send({ email: validUser.email, password: newPassword });
 
@@ -1669,23 +1731,208 @@ describe('Routes - /api/v1/users', () => {
 
       expect(res.status).toBe(401);
     });
-    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token expired)', async () => {});
+
+    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token expired)', async () => {
+      validUser = await User.findOne({ email: validUser.email });
+      await validUser.setCSRFTokenToExpired();
+
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({
+          passwordCurrent: validUser.password,
+          password: newPassword,
+          passwordConfirm: newPassword,
+          token: csrf,
+        });
+
+      expect(res.status).toBe(401);
+
+      res = await supertest(server).post('/api/v1/users/login').send({ email: validUser.email, password: newPassword });
+
+      const cookies = res.header['set-cookie'];
+      const cookiesObj = {};
+
+      if (cookies) {
+        cookies.forEach((element) => {
+          const array = element.split(/=/);
+          cookiesObj[array[0]] = array.slice(1).join('=');
+          expect(cookiesObj.jwt).not.toBeDefined();
+          expect(cookiesObj.csrf).not.toBeDefined();
+        });
+      }
+
+      expect(res.status).toBe(401);
+    });
   });
 
   describe('Update My Email', () => {
-    it('should successfully update current user email if user logged in (JWT valid and not expired), CSRF token valid and not expired, hashed value for req.body.password === user.password, and email/emailConfirm match and are validated successfully', () => {});
-    it('should reject updating current user password if hashed req.body.password !== user.password', () => {});
-    it('should reject updating current user password if req.body.password missing', () => {});
-    it('should reject updating current user password if req.body.email missing', () => {});
-    it('should reject updating current user password if req.body.emailConfirm missing', () => {});
-    it('should reject updating current user password if req.body.email !== req.body.emailConfirm', () => {});
-    it('should reject updating current user password if req.body.email not a valid email (does not pass validation)', () => {});
-    it('should reject if protect middleware not satisfied (JWT invalid)', () => {});
-    it('should reject if protect middleware not satisfied (JWT missing)', () => {});
-    it('should reject if protect middleware not satisfied (JWT expired)', () => {});
-    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token mismatch)', () => {});
-    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token missing)', () => {});
-    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token expired)', () => {});
+    let validUser, existingUser, server, res, jwt, csrf;
+    const newEmail = 'newEmail2@test.io';
+    const newEmailExisting = 'newEmail1@test.io';
+
+    beforeEach(async () => {
+      server = await getServer();
+
+      validUser = {
+        name: 'testing testing',
+        email: 'testing1@test.io',
+        emailConfirm: 'testing1@test.io',
+        phone: '5555555555',
+        password: 'Testing1234!@#',
+        passwordConfirm: 'Testing1234!@#',
+      };
+
+      existingUser = {
+        name: 'testing testing',
+        email: 'newEmail1@test.io',
+        emailConfirm: 'newEmail1@test.io',
+        phone: '5555555555',
+        password: 'Testing1234!@#',
+        passwordConfirm: 'Testing1234!@#',
+      };
+
+      res = await supertest(server).post('/api/v1/users/signup').send(validUser);
+      await supertest(server).post('/api/v1/users/signup').send(existingUser);
+
+      const verifyToken = res.body.token;
+      await supertest(server).get(`/api/v1/users/verifyEmail/${verifyToken}`);
+
+      res = await supertest(server)
+        .post('/api/v1/users/login')
+        .send({ email: validUser.email, password: validUser.password });
+
+      jwt = res.body.data.token;
+      csrf = res.body.data.csrfToken;
+    });
+
+    afterEach(async () => {
+      await User.deleteMany({});
+      await server.close();
+    });
+
+    it('should successfully update current user email if user logged in (JWT valid and not expired), CSRF token valid and not expired, hashed value for req.body.password === user.password, and email/emailConfirm match and are validated successfully', async () => {
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ email: newEmail, emailConfirm: newEmail, password: validUser.password, token: csrf });
+
+      expect(res.status).toBe(200);
+
+      res = await supertest(server).post('/api/v1/users/login').send({ email: newEmail, password: validUser.password });
+
+      expect(res.status).toBe(200);
+      expect(await User.findOne({ email: validUser.email })).toBeNull();
+      expect(await User.findOne({ email: newEmail })).not.toBeNull();
+    });
+
+    it('should reject updating current user email if email already in use', async () => {
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ email: newEmailExisting, emailConfirm: newEmailExisting, password: validUser.password, token: csrf });
+
+      validUser = await User.findOne({ email: validUser.email });
+      existingUser = await User.findOne({ email: newEmailExisting });
+
+      expect(res.status).toBe(200);
+      expect(res.body.message).toMatch(process.env.DUPLICATE_EMAIL_MESSAGE);
+      expect(validUser._id).not.toBe(existingUser._id);
+    });
+
+    it('should reject updating current user email if hashed req.body.password !== user.password', async () => {
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ email: newEmail, emailConfirm: newEmail, password: 'mismatched', token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(res.body.message).toMatch('Incorrect password. Please resubmit with your correct password.');
+      expect(await User.findOne({ email: validUser.email })).not.toBeNull();
+      expect(await User.findOne({ email: newEmail })).toBeNull();
+    });
+
+    it('should reject updating current user email if req.body.password missing', async () => {
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ email: newEmail, emailConfirm: newEmail, token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(res.body.message).toMatch('Cannot update email. Missing one or more of: email, emailConfirm, password.');
+      expect(await User.findOne({ email: validUser.email })).not.toBeNull();
+      expect(await User.findOne({ email: newEmail })).toBeNull();
+    });
+
+    it('should reject updating current user email if req.body.email missing', async () => {
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ emailConfirm: newEmail, password: validUser.password, token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(res.body.message).toMatch('Cannot update email. Missing one or more of: email, emailConfirm, password.');
+      expect(await User.findOne({ email: validUser.email })).not.toBeNull();
+      expect(await User.findOne({ email: newEmail })).toBeNull();
+    });
+
+    it('should reject updating current user email if req.body.emailConfirm missing', async () => {
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ email: newEmail, password: validUser.password, token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(res.body.message).toMatch('Cannot update email. Missing one or more of: email, emailConfirm, password.');
+      expect(await User.findOne({ email: validUser.email })).not.toBeNull();
+      expect(await User.findOne({ email: newEmail })).toBeNull();
+    });
+
+    it('should reject updating current user email if req.body.email !== req.body.emailConfirm', async () => {
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ email: newEmail, emailConfirm: 'mismatched@test.io', password: validUser.password, token: csrf });
+
+      expect(res.status).toBe(401);
+      expect(res.body.message).toMatch(
+        'Email and email confirmation mismatch. Please check these values are the same and resubmit.'
+      );
+      expect(await User.findOne({ email: validUser.email })).not.toBeNull();
+      expect(await User.findOne({ email: newEmail })).toBeNull();
+    });
+
+    it('should reject updating current user email if req.body.email not a valid email (does not pass validation)', async () => {
+      const invalidEmail = 'invalidEmail';
+
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ email: invalidEmail, emailConfirm: invalidEmail, password: validUser.password, token: csrf });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toMatch(
+        'User validation failed: email: Email is invalid. Please provide a valid email address'
+      );
+      expect(await User.findOne({ email: validUser.email })).not.toBeNull();
+      expect(await User.findOne({ email: newEmail })).toBeNull();
+    });
+
+    it('should reject if protect middleware not satisfied (Changed password)', async () => {});
+
+    it('should reject if protect middleware not satisfied (Changed email)', async () => {});
+
+    it('should reject if protect middleware not satisfied (JWT invalid)', async () => {});
+
+    it('should reject if protect middleware not satisfied (JWT missing)', async () => {});
+
+    it('should reject if protect middleware not satisfied (JWT expired)', async () => {});
+
+    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token mismatch)', async () => {});
+
+    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token missing)', async () => {});
+
+    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token expired)', async () => {});
   });
 
   describe('Admin Get All Users', () => {});

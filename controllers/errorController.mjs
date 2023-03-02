@@ -6,8 +6,7 @@ const handleCastErrorDB = (err) => {
 };
 
 const handleDuplicateFieldsDB = (err) => {
-  const message = `Sorry we were unable to create your account. If you are unsure if an account exists for the requested email address, consider submitting a password reset or email verification request.`;
-  return new AppError(message, 400);
+  return new AppError(err.message, 400);
 };
 
 const handleValidationErrorDB = (err) => {
@@ -32,7 +31,7 @@ const sendErrorProd = (err, res) => {
   // Programming or other unknown error: don't leak details to client.
   else {
     // Log error for our own purposes
-    console.error('ERROR', err);
+    console.error('ERROR', err.stack);
     // Send generic message to client.
     res.status(500).json({ status: 'error', message: 'Something went very wrong.' });
   }
