@@ -3268,7 +3268,7 @@ describe('Routes - /api/v1/users', () => {
   });
 
   describe('Admin Reactivate User', () => {
-    let server, validUser, queryUser, userObj, res, jwt, csrf;
+    let server, validUser, queryUser, userObj, queryObj, res, jwt, csrf;
     beforeEach(async () => {
       server = await getServer();
 
@@ -3301,8 +3301,10 @@ describe('Routes - /api/v1/users', () => {
         .send({ email: validUser.email, password: validUser.password });
 
       userObj = await User.findOne({ email: validUser.email });
+      queryObj = await User.findOne({ email: queryUser.email });
 
       await userObj.setRole('admin');
+      await queryObj.setActiveFalse();
 
       jwt = res.body.data.token;
       csrf = res.body.data.csrfToken;
@@ -3313,7 +3315,145 @@ describe('Routes - /api/v1/users', () => {
       await server.close();
     });
 
-    it('should ', async () => {});
+    it('should successfully reactivate user (set active status to true) if currently logged in (JWT valid) user is admin, CSRF token valid, and req.body.userEmail belongs to an existing account', async () => {
+      res = await supertest(server)
+        .post('/api/v1/users/reactivateUser')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ userEmail: queryUser.email, token: csrf });
+
+      queryUser = await User.findOne({ email: queryUser.email });
+
+      expect(res.status).toBe(200);
+      expect(queryUser.active).toBe(true);
+    });
+
+    it('should reject if req.body.userEmail does not belong to an account in the database', async () => {
+      res = await supertest(server)
+        .post('/api/v1/users/reactivateUser')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ userEmail: 'invalidEmail@test.io', token: csrf });
+
+      expect(res.status).toBe(404);
+      expect(res.body.message).toMatch('No user found for the email provided.');
+    });
+
+    it('should reject if protect middleware not satisfied (Changed password)', async () => {
+      const newPassword = 'NewPassword1@';
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updatePassword')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({
+          passwordCurrent: validUser.password,
+          password: newPassword,
+          passwordConfirm: newPassword,
+          token: csrf,
+        });
+
+      res = await supertest(server)
+        .post('/api/v1/users/reactivateUser')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ userEmail: queryUser.email, token: csrf });
+
+      queryUser = await User.findOne({ email: queryUser.email });
+
+      expect(res.status).toBe(401);
+      expect(queryUser.active).toBe(false);
+    });
+    it('should reject if protect middleware not satisfied (Changed email)', async () => {
+      const newEmail = 'newEmail@test.io';
+      res = await supertest(server)
+        .patch('/api/v1/users/me/updateEmail')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ email: newEmail, emailConfirm: newEmail, password: validUser.password, token: csrf });
+
+      res = await supertest(server)
+        .post('/api/v1/users/reactivateUser')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ userEmail: queryUser.email, token: csrf });
+
+      queryUser = await User.findOne({ email: queryUser.email });
+
+      expect(res.status).toBe(401);
+      expect(queryUser.active).toBe(false);
+    });
+    it('should reject if protect middleware not satisfied (JWT invalid)', async () => {
+      res = await supertest(server)
+        .post('/api/v1/users/reactivateUser')
+        .set('Authorization', `Bearer invalidJWT`)
+        .send({ userEmail: queryUser.email, token: csrf });
+
+      queryUser = await User.findOne({ email: queryUser.email });
+
+      expect(res.status).toBe(401);
+      expect(queryUser.active).toBe(false);
+    });
+    it('should reject if protect middleware not satisfied (JWT missing)', async () => {
+      res = await supertest(server)
+        .post('/api/v1/users/reactivateUser')
+        .send({ userEmail: queryUser.email, token: csrf });
+
+      queryUser = await User.findOne({ email: queryUser.email });
+
+      expect(res.status).toBe(401);
+      expect(queryUser.active).toBe(false);
+    });
+    it('should reject if protect middleware not satisfied (JWT expired)', async () => {
+      const actualJWTExpiration = process.env.JWT_EXPIRES_IN;
+      process.env.JWT_EXPIRES_IN = 0;
+
+      res = await supertest(server)
+        .post('/api/v1/users/login')
+        .send({ email: validUser.email, password: validUser.password });
+
+      jwt = res.body.data.token;
+      csrf = res.body.data.csrfToken;
+      process.env.JWT_EXPIRES_IN = actualJWTExpiration;
+
+      res = await supertest(server)
+        .post('/api/v1/users/reactivateUser')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ userEmail: queryUser.email, token: csrf });
+
+      queryUser = await User.findOne({ email: queryUser.email });
+
+      expect(res.status).toBe(401);
+      expect(queryUser.active).toBe(false);
+    });
+    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token mismatch)', async () => {
+      res = await supertest(server)
+        .post('/api/v1/users/reactivateUser')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ userEmail: queryUser.email, token: 'invalidCSRF' });
+
+      queryUser = await User.findOne({ email: queryUser.email });
+
+      expect(res.status).toBe(401);
+      expect(queryUser.active).toBe(false);
+    });
+    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token missing)', async () => {
+      res = await supertest(server)
+        .post('/api/v1/users/reactivateUser')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ userEmail: queryUser.email });
+
+      queryUser = await User.findOne({ email: queryUser.email });
+
+      expect(res.status).toBe(401);
+      expect(queryUser.active).toBe(false);
+    });
+    it('should reject if protect checkValidCSRFToken not satisfied (CSRF token expired)', async () => {
+      await userObj.setCSRFTokenToExpired();
+
+      res = await supertest(server)
+        .post('/api/v1/users/reactivateUser')
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ userEmail: queryUser.email, token: csrf });
+
+      queryUser = await User.findOne({ email: queryUser.email });
+
+      expect(res.status).toBe(401);
+      expect(queryUser.active).toBe(false);
+    });
   });
 
   afterAll(async () => {
