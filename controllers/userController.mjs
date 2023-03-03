@@ -65,7 +65,7 @@ export const getAllUsers = catchAsync(async (req, res, next) => {
 export const getUser = catchAsync(async (req, res, next) => {
   const user = await User.findOne({ email: req.params.email });
 
-  if (!user) return next(new AppError('No user found for the email provided.'), 404);
+  if (!user) return next(new AppError('No user found for the email provided.', 404));
 
   res.status(200).json({ status: 'success', data: { data: user } });
 });
@@ -75,7 +75,7 @@ export const updateUser = catchAsync(async (req, res, next) => {
     new: true,
     runValidators: true,
   });
-  if (!user) return next(new AppError('No user found for given id'), 404);
+  if (!user) return next(new AppError('No user found for the email provided.', 404));
 
   res.status(200).json({ status: 'success', data: { data: user } });
 });
@@ -83,7 +83,7 @@ export const updateUser = catchAsync(async (req, res, next) => {
 export const deleteUser = catchAsync(async (req, res, next) => {
   const user = await User.findOneAndUpdate({ email: req.params.email }, { active: false });
 
-  if (!user) return next(new AppError('No user found for given id'), 404);
+  if (!user) return next(new AppError('No user found for the email provided.', 404));
 
   res.status(200).json({ status: 'success', message: 'Successfully inactivated account.' });
 });

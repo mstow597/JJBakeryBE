@@ -231,7 +231,7 @@ export const login = catchAsync(async (req, res, next) => {
   if (!email || !password) return next(new AppError('Missing email or password', 400));
 
   const user = await User.findOne({ email }).select('+password');
-  if (!user || !user.verified || !(await user.correctPassword(password, user.password)))
+  if (!user || !user.active || !user.verified || !(await user.correctPassword(password, user.password)))
     return next(
       new AppError(
         'Incorrect email or password, email not verified (must be verified to access account), account inactived (to reactivate, please contact customer service using our contact form), or account does not exist.',

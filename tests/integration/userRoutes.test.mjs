@@ -1336,7 +1336,8 @@ describe('Routes - /api/v1/users', () => {
 
       const validUserInactive = await User.findOne({ email: validUser.email });
 
-      expect(validUserInactive).toBeNull();
+      expect(validUserInactive.active).toBe(false);
+      expect(validUserInactive.csrfTokenExpires).toMatchObject(new Date(0));
       expect(cookiesObj.jwt).toMatch('; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly');
       expect(cookiesObj.csrf).toMatch('; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly');
       expect(res.status).toBe(200);
@@ -2455,10 +2456,8 @@ describe('Routes - /api/v1/users', () => {
         .set('Authorization', `Bearer ${jwt}`)
         .send({ token: csrf });
 
-      if (!user) return next(new AppError('No user found for the email provided.'), 404);
-
       expect(res.status).toBe(404);
-      expect(res.message).toBe('No user found for the email provided.');
+      expect(res.body.message).toBe('No user found for the email provided.');
       expect(res.body.data).not.toBeDefined();
     });
 
@@ -2627,6 +2626,7 @@ describe('Routes - /api/v1/users', () => {
       expect(res.status).toBe(200);
       expect(queryUser.phone).toMatch(newPhone);
     });
+
     it('should update user successfully if middleware conditions satisfied, and req.body.name is valid', async () => {
       res = await supertest(server)
         .patch(`/api/v1/users/${queryUser.email}`)
@@ -2638,6 +2638,7 @@ describe('Routes - /api/v1/users', () => {
       expect(res.status).toBe(200);
       expect(queryUser.name).toMatch(newName);
     });
+
     it('should update user successfully if middleware conditions satisfied, and req.body.name and req.body.phone are valid', async () => {
       res = await supertest(server)
         .patch(`/api/v1/users/${queryUser.email}`)
@@ -2650,6 +2651,7 @@ describe('Routes - /api/v1/users', () => {
       expect(queryUser.name).toMatch(newName);
       expect(queryUser.phone).toMatch(newPhone);
     });
+
     it('should reject when req.body.email is passed due to middleware', async () => {
       const newEmail = 'newEmail@test.io';
 
@@ -2665,6 +2667,7 @@ describe('Routes - /api/v1/users', () => {
       expect(queryUser.phone).not.toMatch(newPhone);
       expect(await User.findOne({ email: newEmail })).toBeNull();
     });
+
     it('should ignore req.body.emailConfirm and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {
       const newEmailConfirm = 'newEmail@test.io';
 
@@ -2680,6 +2683,7 @@ describe('Routes - /api/v1/users', () => {
       expect(queryUser.phone).toMatch(newPhone);
       expect(queryUser.emailConfirm).not.toBeDefined();
     });
+
     it('should ignore req.body.emailChangedAt and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {
       const newEmailChangedAt = Date.now();
 
@@ -2695,6 +2699,7 @@ describe('Routes - /api/v1/users', () => {
       expect(queryUser.phone).toMatch(newPhone);
       expect(queryUser.emailChangedAt).not.toBeDefined();
     });
+
     it('should ignore req.body.previousEmails and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {
       const newPreviousEmails = ['previousEmail1@test.io', 'previousEmail2@test.io'];
 
@@ -2710,6 +2715,7 @@ describe('Routes - /api/v1/users', () => {
       expect(queryUser.phone).toMatch(newPhone);
       expect(queryUser.previousEmails).not.toMatchObject(newPreviousEmails);
     });
+
     it('should ignore req.body.role and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {
       const newRole = 'admin';
 
@@ -2725,6 +2731,7 @@ describe('Routes - /api/v1/users', () => {
       expect(queryUser.phone).toMatch(newPhone);
       expect(queryUser.role).not.toMatch(newRole);
     });
+
     it('should ignore req.body.password and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {
       const newPassword = 'newPassword1@';
 
@@ -2740,6 +2747,7 @@ describe('Routes - /api/v1/users', () => {
       expect(queryUser.phone).not.toMatch(newPhone);
       expect(queryUser.password).not.toMatch(newPassword);
     });
+
     it('should ignore req.body.passwordConfirm and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {
       const newPasswordConfirm = 'newPassword1@';
 
@@ -2755,6 +2763,7 @@ describe('Routes - /api/v1/users', () => {
       expect(queryUser.phone).not.toMatch(newPhone);
       expect(queryUser.passwordConfirm).not.toBeDefined();
     });
+
     it('should ignore req.body.passwordChangedAt and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {
       const newPasswordChangedAt = Date.now();
 
@@ -2770,6 +2779,7 @@ describe('Routes - /api/v1/users', () => {
       expect(queryUser.phone).toMatch(newPhone);
       expect(queryUser.passwordChangedAt).not.toBeDefined();
     });
+
     it('should ignore req.body.passwordResetToken and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {
       const newPasswordResetToken = 'randomToken';
 
@@ -2785,6 +2795,7 @@ describe('Routes - /api/v1/users', () => {
       expect(queryUser.phone).toMatch(newPhone);
       expect(queryUser.passwordResetToken).not.toBeDefined();
     });
+
     it('should ignore req.body.passwordResetTokenExpires and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {
       const newPasswordResetExpires = Date.now();
 
@@ -2800,6 +2811,7 @@ describe('Routes - /api/v1/users', () => {
       expect(queryUser.phone).toMatch(newPhone);
       expect(queryUser.passwordResetExpires).not.toBeDefined();
     });
+
     it('should ignore req.body.csrfToken and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {
       const newCSRFToken = 'newCSRFToken';
 
@@ -2815,6 +2827,7 @@ describe('Routes - /api/v1/users', () => {
       expect(queryUser.phone).toMatch(newPhone);
       expect(queryUser.csrfToken).not.toBeDefined(); // unverified user - has never logged in - no csrfToken generated at this point
     });
+
     it('should ignore req.body.csrfTokenExpires and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {
       const newCSRFTokenExpires = Date.now();
 
@@ -2830,6 +2843,7 @@ describe('Routes - /api/v1/users', () => {
       expect(queryUser.phone).toMatch(newPhone);
       expect(queryUser.csrfTokenExpires).not.toBeDefined();
     });
+
     it('should ignore req.body.verified and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {
       const newVerified = true;
 
@@ -2845,6 +2859,7 @@ describe('Routes - /api/v1/users', () => {
       expect(queryUser.phone).toMatch(newPhone);
       expect(queryUser.verified).not.toBe(newVerified);
     });
+
     it('should ignore req.body.active and update user successfully if middleware conditions satisfied and req.body.name and req.body.phone are valid', async () => {
       const newActive = false;
 
@@ -2861,6 +2876,17 @@ describe('Routes - /api/v1/users', () => {
       expect(queryUser.active).not.toBe(newActive);
     });
 
+    it('should reject if the req.params.email is not an email address associated with an account', async () => {
+      res = await supertest(server)
+        .patch(`/api/v1/users/invalidEmail@test.io`)
+        .set('Authorization', `Bearer ${jwt}`)
+        .send({ name: newName, phone: newPhone, token: csrf });
+
+      expect(res.status).toBe(404);
+      expect(res.body.message).toBe('No user found for the email provided.');
+      expect(res.body.data).not.toBeDefined();
+    });
+
     it('should reject if req.body.name is not a valid name', async () => {
       res = await supertest(server)
         .patch(`/api/v1/users/${queryUser.email}`)
@@ -2873,6 +2899,7 @@ describe('Routes - /api/v1/users', () => {
       expect(queryUser.name).not.toMatch('123');
       expect(queryUser.phone).not.toMatch(newPhone);
     });
+
     it('should reject if req.body.phone is not a valid phone number', async () => {
       res = await supertest(server)
         .patch(`/api/v1/users/${queryUser.email}`)
@@ -2909,6 +2936,7 @@ describe('Routes - /api/v1/users', () => {
       expect(queryUser.name).not.toMatch(newName);
       expect(queryUser.phone).not.toMatch(newPhone);
     });
+
     it('should reject if protect middleware not satisfied (Changed email)', async () => {
       const newEmail = 'newEmail@test.io';
       res = await supertest(server)
@@ -2927,6 +2955,7 @@ describe('Routes - /api/v1/users', () => {
       expect(queryUser.name).not.toMatch(newName);
       expect(queryUser.phone).not.toMatch(newPhone);
     });
+
     it('should reject if protect middleware not satisfied (JWT invalid)', async () => {
       res = await supertest(server)
         .patch(`/api/v1/users/${queryUser.email}`)
@@ -2939,6 +2968,7 @@ describe('Routes - /api/v1/users', () => {
       expect(queryUser.name).not.toMatch(newName);
       expect(queryUser.phone).not.toMatch(newPhone);
     });
+
     it('should reject if protect middleware not satisfied (JWT missing)', async () => {
       res = await supertest(server)
         .patch(`/api/v1/users/${queryUser.email}`)
@@ -2950,6 +2980,7 @@ describe('Routes - /api/v1/users', () => {
       expect(queryUser.name).not.toMatch(newName);
       expect(queryUser.phone).not.toMatch(newPhone);
     });
+
     it('should reject if protect middleware not satisfied (JWT expired)', async () => {
       const actualJWTExpiration = process.env.JWT_EXPIRES_IN;
       process.env.JWT_EXPIRES_IN = 0;
@@ -2973,6 +3004,7 @@ describe('Routes - /api/v1/users', () => {
       expect(queryUser.name).not.toMatch(newName);
       expect(queryUser.phone).not.toMatch(newPhone);
     });
+
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token mismatch)', async () => {
       res = await supertest(server)
         .patch(`/api/v1/users/${queryUser.email}`)
@@ -2985,6 +3017,7 @@ describe('Routes - /api/v1/users', () => {
       expect(queryUser.name).not.toMatch(newName);
       expect(queryUser.phone).not.toMatch(newPhone);
     });
+
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token missing)', async () => {
       res = await supertest(server)
         .patch(`/api/v1/users/${queryUser.email}`)
@@ -2997,6 +3030,7 @@ describe('Routes - /api/v1/users', () => {
       expect(queryUser.name).not.toMatch(newName);
       expect(queryUser.phone).not.toMatch(newPhone);
     });
+
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token expired)', async () => {
       await userObj.setCSRFTokenToExpired();
 
