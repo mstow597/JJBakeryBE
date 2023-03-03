@@ -63,7 +63,7 @@ export const getAllUsers = catchAsync(async (req, res, next) => {
 });
 
 export const getUser = catchAsync(async (req, res, next) => {
-  const user = await User.findOne({ email: req.params.email });
+  const user = await User.findOne({ email: req.body.userEmail });
 
   if (!user) return next(new AppError('No user found for the email provided.', 404));
 
@@ -71,7 +71,7 @@ export const getUser = catchAsync(async (req, res, next) => {
 });
 
 export const updateUser = catchAsync(async (req, res, next) => {
-  const user = await User.findOneAndUpdate({ email: req.params.email }, filterObj(req.body, 'name', 'phone'), {
+  const user = await User.findOneAndUpdate({ email: req.body.userEmail }, filterObj(req.body, 'name', 'phone'), {
     new: true,
     runValidators: true,
   });
@@ -81,9 +81,17 @@ export const updateUser = catchAsync(async (req, res, next) => {
 });
 
 export const deleteUser = catchAsync(async (req, res, next) => {
-  const user = await User.findOneAndUpdate({ email: req.params.email }, { active: false });
+  const user = await User.findOneAndUpdate({ email: req.body.userEmail }, { active: false });
 
   if (!user) return next(new AppError('No user found for the email provided.', 404));
 
   res.status(200).json({ status: 'success', message: 'Successfully inactivated account.' });
+});
+
+export const reactivateUser = catchAsync(async (req, res, next) => {
+  const user = await User.findOneAndUpdate({ email: req.body.userEmail }, { active: true });
+
+  if (!user) return next(new AppError('No user found for the email provided.', 404));
+
+  res.status(200).json({ status: 'success', message: 'Successfully reactivated account.' });
 });

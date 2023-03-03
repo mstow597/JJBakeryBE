@@ -22,6 +22,7 @@ import {
   getUser,
   updateUser,
   checkForEmailPassword,
+  reactivateUser,
 } from '../controllers/userController.mjs';
 
 const router = express.Router();
@@ -46,10 +47,9 @@ router.patch('/me/updateEmail', protect, checkValidCSRFToken, updateEmail);
 
 // Protected admin only routes
 router.post('/', protect, restrictTo('admin'), checkValidCSRFToken, getAllUsers);
-router
-  .route('/:email')
-  .post(protect, restrictTo('admin'), checkValidCSRFToken, getUser)
-  .patch(protect, restrictTo('admin'), checkValidCSRFToken, checkForEmailPassword, updateUser)
-  .delete(protect, restrictTo('admin'), checkValidCSRFToken, deleteUser);
+router.post('/getUser', protect, restrictTo('admin'), checkValidCSRFToken, getUser);
+router.post('/reactivateUser', protect, restrictTo('admin'), checkValidCSRFToken, reactivateUser);
+router.patch('/updateUser', protect, restrictTo('admin'), checkValidCSRFToken, checkForEmailPassword, updateUser);
+router.delete('/deleteUser', protect, restrictTo('admin'), checkValidCSRFToken, deleteUser);
 
 export default router;

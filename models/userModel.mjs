@@ -162,14 +162,6 @@ if (process.env.NODE_ENV === 'test') {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// All find like queries associated with User will go through this middleware first to select only active users
-// userSchema.pre(/^find/, function (next) {
-//   if (this.getFilter().role === 'admin') next(); // bypass if user is admin (we want all users - inactive and active - for admin)
-
-//   this.find({ active: { $ne: false } });
-//   next();
-// });
-
 userSchema.pre('save', async function (next) {
   this.emailConfirm = undefined;
 
