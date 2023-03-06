@@ -12,6 +12,7 @@ import {
   updatePassword,
   updateEmail,
   displayResetPasswordPage,
+  checkForEmailPassword,
 } from '../controllers/authController.mjs';
 import {
   getMe,
@@ -21,7 +22,6 @@ import {
   getAllUsers,
   getUser,
   updateUser,
-  checkForEmailPassword,
   reactivateUser,
 } from '../controllers/userController.mjs';
 

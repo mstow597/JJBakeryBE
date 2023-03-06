@@ -177,4 +177,5 @@ userSchema.pre('save', function (next) {
   this.passwordChangedAt = Date.now();
   next();
 });
+
 export const User = mongoose.model('User', userSchema);

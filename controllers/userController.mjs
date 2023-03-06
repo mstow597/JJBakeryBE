@@ -2,12 +2,6 @@ import { User } from '../models/userModel.mjs';
 import { AppError } from '../utils/appError.mjs';
 import { catchAsync } from '../utils/catchAsync.mjs';
 
-export const checkForEmailPassword = (req, res, next) => {
-  if (req.body.password || req.body.email)
-    return next(new AppError('Not allowed to update password nor email with this route.', 404));
-  next();
-};
-
 const filterObj = (obj, ...allowedFields) => {
   let newObject = {};
   Object.keys(obj).forEach((element) => {

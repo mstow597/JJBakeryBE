@@ -6,6 +6,7 @@ const productSchema = new mongoose.Schema({
     type: String,
     trim: true,
     required: true,
+    unique: true,
     minLength: 5,
     maxLength: 50,
     validate: {
@@ -19,17 +20,8 @@ const productSchema = new mongoose.Schema({
     enum: ['bread', 'muffin', 'cookie', 'brownie', 'cake', 'pie', 'pastry'],
     required: [true, 'Product must have a category'],
   },
-  quantityPerOrder: { type: Number, required: true, min: 1 },
-  price: { type: Number, required: [true, 'Product must have a price.'] },
-  subscriberPrice: {
-    type: Number,
-    default: this.price * 0.8,
-    validate: {
-      validator: function (value) {
-        return value > 0 && value < this.price;
-      },
-    },
-  },
+  quantityPerOrder: { type: Number, required: [true, 'Product must have a quantity per order.'], min: 1 },
+  pricePerOrder: { type: Number, required: [true, 'Product must have a price per order.'] },
   image: { type: String, required: [true, 'Product must have an associated image.'] },
   description: { type: String, maxLength: 250, trim: true, required: [true, 'Product must have a description.'] },
   ingredients: { type: [String], required: [true, 'Product must contain ingredients.'] },

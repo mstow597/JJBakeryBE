@@ -123,6 +123,12 @@ const generateAndSendLink = async (req, res, statusCode, option) => {
   }
 };
 
+export const checkForEmailPassword = (req, res, next) => {
+  if (req.body.password || req.body.email)
+    return next(new AppError('Not allowed to update password nor email with this route.', 404));
+  next();
+};
+
 /**
  *
  * @param  {...any} roles Accepts an array of string arguments where each argument is a role defined in the User schema
