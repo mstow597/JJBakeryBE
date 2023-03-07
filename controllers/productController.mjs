@@ -12,9 +12,11 @@ export const getProducts = catchAsync(async (req, res, next) => {
     return next(new AppError('Invalid page number and/or cursor value', 400));
 
   const products = await Product.find({ _id: { $gte: nextCursor } }).limit(limit + 1);
-  nextCursor = products[limit]._id;
 
-  products.length = limit; // alternative to slice(...) -- removing last element
+  if (!(products.length < limit)) {
+    nextCursor = products[limit]._id;
+    products.length = limit; // alternative to slice(...) -- removing last element
+  }
   res.status(200).json({ status: 'success', data: { nextCursor, limit, products } });
 });
 
