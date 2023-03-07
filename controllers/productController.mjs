@@ -5,6 +5,28 @@ import { catchAsync } from '../utils/catchAsync.mjs';
 
 const minMongoId = '000000000000';
 
+const filterUpdate = (object) => {
+  const filteredObj = {};
+  const allowedFields = [
+    'name',
+    'category',
+    'quantityPerOrder',
+    'pricePerOrder',
+    'imageSrc',
+    'imageAlt',
+    'description',
+    'ingredients',
+    'glutenFree',
+    'dairyFree',
+  ];
+
+  Object.keys(object).forEach((element) => {
+    if (allowedFields.includes(element)) filteredObj[element] = object[element];
+  });
+
+  return filteredObj;
+};
+
 export const getProducts = catchAsync(async (req, res, next) => {
   let { nextCursor = minMongoId, limit = 10 } = req.params;
 
@@ -63,6 +85,37 @@ export const getProductsByCategories = catchAsync(async (req, res, next) => {
   res.status(200).json({ status: 'success', data: { nextCursor, limit, products } });
 });
 
-export const addNewProduct = catchAsync((req, res, next) => {});
-export const updateProduct = catchAsync((req, res, next) => {});
-export const deleteProduct = catchAsync((req, res, next) => {});
+export const addNewProduct = catchAsync(async (req, res, next) => {
+  const product = await Product.create({
+    name: req.body.name,
+    category: req.body.category,
+    quantityPerOrder: req.body.quantityPerOrder,
+    pricePerOrder: req.body.pricePerOrder,
+    imageSrc: req.body.imageSrc,
+    imageAlt: req.body.imageAlt,
+    description: req.body.description,
+    ingredients: req.body.ingredients,
+    glutenFree: req.body.glutenFree,
+    dairyFree: req.body.dairyFree,
+  });
+
+  res.status(200).json({ status: 'success', data: { product } });
+});
+
+export const updateProduct = catchAsync(async (req, res, next) => {
+  const filteredObj = filterUpdate(req.body);
+  const updatedProduct = await Product.findOneAndUpdate(filteredObj);
+
+  if (!updatedProduct) return next(new AppError('Product with that name does not exist.', 400));
+
+  res.status(200).json({ status: 'success', data: { updatedProduct } });
+});
+
+export const deleteProduct = catchAsync(async (req, res, next) => {
+  const deletedProduct = await Product.findOneAndDelete({ name: req.body.name });
+
+  if (!deletedProduct) return next(new AppError('Product with that name does not exist.', 400));
+
+  console.log(deletedProduct);
+  res.status(200).json({ status: 'success', message: 'Successfully removed product from database.' });
+});

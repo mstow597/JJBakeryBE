@@ -172,8 +172,6 @@ export const signup = catchAsync(async (req, res, next) => {
     passwordConfirm: req.body.passwordConfirm,
   });
 
-  // await user.save({ validateBeforeSave: false });
-
   await generateAndSendLink(req, res, 201, 'newUser');
 });
 

@@ -6,6 +6,7 @@ const productSchema = new mongoose.Schema({
     type: String,
     trim: true,
     required: true,
+    lowercase: true,
     unique: true,
     minLength: 5,
     maxLength: 50,
@@ -17,14 +18,25 @@ const productSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['bread', 'muffin', 'cookie', 'brownie', 'cake', 'pie', 'pastry'],
+    lowercase: true,
     required: [true, 'Product must have a category'],
+    enum: ['bread', 'muffin', 'cookie', 'brownie', 'cake', 'pie', 'pastry'],
   },
   quantityPerOrder: { type: Number, required: [true, 'Product must have a quantity per order.'], min: 1 },
-  pricePerOrder: { type: Number, required: [true, 'Product must have a price per order.'] },
-  image: { type: String, required: [true, 'Product must have an associated image.'] },
+  pricePerOrder: { type: Number, required: [true, 'Product must have a price per order.'], min: 0 },
+  imageSrc: { type: String, required: [true, 'Product must have an associated image.'] },
+  imageAlt: { type: String, required: [true, 'Product must have an alt description for the image.'] },
   description: { type: String, maxLength: 250, trim: true, required: [true, 'Product must have a description.'] },
-  ingredients: { type: [String], required: [true, 'Product must contain ingredients.'] },
+  ingredients: {
+    type: [String],
+    required: [true, 'Product must contain one or more ingredients.'],
+    validate: {
+      validator: function (value) {
+        return value.every((element) => validator.isAlpha(element.replace(/\s/g, '')));
+      },
+      message: 'All ingredients must contain only alpha characters.',
+    },
+  },
   glutenFree: { type: Boolean, default: false },
   dairyFree: { type: Boolean, default: false },
 });
