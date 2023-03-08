@@ -29,7 +29,7 @@
     "brownies",
     "cake"
   ],
-  "author": "Mark Stowell",
+  "author": "mstow597",
   "license": "ISC",
   "dependencies": {
     "bcryptjs": "^2.4.3",
