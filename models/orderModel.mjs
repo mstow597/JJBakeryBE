@@ -10,23 +10,31 @@ import mongoose from 'mongoose';
 const orderSchema = new mongoose.Schema({
   transactionComplete: { type: Boolean, default: false },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: undefined },
-  price: { type: Number, default: 0, min: 0 },
-  products: [
-    {
-      product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
-      quantity: {
-        type: Number,
-        required: [true, 'Must provide how many orders you wish to purchase of this product'],
-        min: 1,
-        validate: {
-          validator: function (value) {
-            return value % 0.5 === 0;
+  purchasePrice: { type: Number, default: 0, min: 0 },
+  purchaseDate: { type: Date, default: undefined },
+  products: {
+    default: [],
+    type: [
+      {
+        product: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Product',
+          required: [true, 'Must provide the product being purchased.'],
+        },
+        quantity: {
+          type: Number,
+          required: [true, 'Must provide how many orders you wish to purchase of this product'],
+          min: 1,
+          validate: {
+            validator: function (value) {
+              return value % 0.5 === 0;
+            },
+            message: 'Quantity must be a multiple of 0.5 (one-half).',
           },
-          message: 'Quantity must be a multiple of 0.5 (one-half).',
         },
       },
-    },
-  ],
+    ],
+  },
 });
 
 export const Order = mongoose.model('Order', orderSchema);
