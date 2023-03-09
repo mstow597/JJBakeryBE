@@ -34,9 +34,18 @@ const createSendTokens = catchAsync(async (user, statusCode, res) => {
   };
 
   if (process.env.NODE_ENV === 'production') cookieOptions.secure = true;
-  res.cookie('jwt', token, cookieOptions);
-  res.cookie('csrf', csrfToken, cookieOptions);
+
+  res.cookie('jwt', token, {
+    expires: new Date(Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000),
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production' ? true : false,
+  });
+  res.cookie('csrf', csrfToken, {
+    expires: new Date(Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000),
+    secure: process.env.NODE_ENV === 'production' ? true : false,
+  });
   user.password = undefined; //to prevent sending the password information back to the user - we are not saving, no updates made to DB
+
   res.status(statusCode).json({ status: 'success', data: { user: user, token, csrfToken } });
 });
 
@@ -239,9 +248,34 @@ export const login = catchAsync(async (req, res, next) => {
     return next(
       new AppError(
         'Incorrect email or password, email not verified (must be verified to access account), account inactived (to reactivate, please contact customer service using our contact form), or account does not exist.',
-        401
+        400
       )
     );
+
+  createSendTokens(user, 200, res);
+});
+
+export const checkAndRefreshLogin = catchAsync(async (req, res, next) => {
+  let token;
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer'))
+    token = req.headers.authorization.split(' ')[1];
+  if (!token) return next(new AppError('You are not logged in. Please log in to get access', 401));
+
+  let decoded;
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+  } catch (err) {
+    next(err);
+  }
+
+  const user = await User.findById(decoded.id).select('+password');
+  if (!user) return next(new AppError('Invalid token, user does not exist, or user inactivated.', 401));
+
+  if (user.changedPasswordAfter(decoded.iat))
+    return next(new AppError('Recently changed password! Please log in again.', 401));
+
+  if (user.changedEmailAfter(decoded.iat))
+    return next(new AppError('Recently changed email! Please log in again.', 401));
 
   createSendTokens(user, 200, res);
 });
@@ -435,7 +469,7 @@ export const updateEmail = catchAsync(async (req, res, next) => {
   updatedUser.emailConfirm = req.body.emailConfirm;
   updatedUser.verified = false;
 
-  await updatedUser.save();
+  updatedUser = await updatedUser.save();
 
   await generateAndSendLink(req, res, 200, 'email');
 });

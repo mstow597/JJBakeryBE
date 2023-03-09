@@ -61,7 +61,10 @@ describe('Routes - /api/v1/users', () => {
     });
 
     it('should create a new user successfully (no duplicate key)', async () => {
+      console.log(validUser);
       const res = await supertest(server).post('/api/v1/users/signup').send(validUser);
+
+      console.log(res);
 
       const user = await User.findOne({ email: validUser.email });
 
@@ -296,7 +299,7 @@ describe('Routes - /api/v1/users', () => {
         expect(cookiesObj.csrf).not.toBeDefined();
       }
 
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(400);
     });
 
     it('should reject login when email is missing', async () => {
@@ -352,7 +355,7 @@ describe('Routes - /api/v1/users', () => {
         });
       }
 
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(400);
       expect(res.body.message).toMatch(
         'Incorrect email or password, email not verified (must be verified to access account), account inactived (to reactivate, please contact customer service using our contact form), or account does not exist.'
       );
@@ -378,7 +381,7 @@ describe('Routes - /api/v1/users', () => {
         });
       }
 
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(400);
       expect(res.body.message).toMatch(
         'Incorrect email or password, email not verified (must be verified to access account), account inactived (to reactivate, please contact customer service using our contact form), or account does not exist.'
       );
@@ -971,7 +974,7 @@ describe('Routes - /api/v1/users', () => {
       expect(res.status).toBe(404);
       expect(res.body.message).toBe('Not allowed to update password nor email with this route.');
 
-      expect(resLoginAfterAttemptedChange.status).toBe(401);
+      expect(resLoginAfterAttemptedChange.status).toBe(400);
       expect(resLoginAfterAttemptedChange.body.message).toMatch(
         'Incorrect email or password, email not verified (must be verified to access account), account inactived (to reactivate, please contact customer service using our contact form), or account does not exist.'
       );
@@ -1351,7 +1354,7 @@ describe('Routes - /api/v1/users', () => {
         .post('/api/v1/users/login')
         .send({ email: validUser.email, password: validUser.password });
 
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(400);
     });
 
     it('should reject if protect middleware not satisfied (Changed password)', async () => {
@@ -1573,7 +1576,7 @@ describe('Routes - /api/v1/users', () => {
         });
       }
 
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(400);
     });
 
     it('should reject updating current user password if req.body.currentPassword missing', async () => {
@@ -1598,7 +1601,7 @@ describe('Routes - /api/v1/users', () => {
         });
       }
 
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(400);
     });
 
     it('should reject updating current user password if req.body.password missing', async () => {
@@ -1623,7 +1626,7 @@ describe('Routes - /api/v1/users', () => {
         });
       }
 
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(400);
     });
 
     it('should reject updating current user password if req.body.passwordConfirm missing', async () => {
@@ -1652,7 +1655,7 @@ describe('Routes - /api/v1/users', () => {
         });
       }
 
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(400);
     });
 
     it('should reject updating current user password if req.body.password !== req.body.passwordConfirm', async () => {
@@ -1682,7 +1685,7 @@ describe('Routes - /api/v1/users', () => {
         });
       }
 
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(400);
     });
 
     it('should reject updating current user password if req.body.password not strong enough (does not pass validation)', async () => {
@@ -1713,7 +1716,7 @@ describe('Routes - /api/v1/users', () => {
         });
       }
 
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(400);
     });
 
     it('should reject if protect middleware not satisfied (Changed password)', async () => {
@@ -1789,7 +1792,7 @@ describe('Routes - /api/v1/users', () => {
         });
       }
 
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(400);
     });
 
     it('should reject if protect middleware not satisfied (JWT missing)', async () => {
@@ -1816,7 +1819,7 @@ describe('Routes - /api/v1/users', () => {
         });
       }
 
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(400);
     });
 
     it('should reject if protect middleware not satisfied (JWT expired)', async () => {
@@ -1858,7 +1861,7 @@ describe('Routes - /api/v1/users', () => {
         });
       }
 
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(400);
     });
 
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token mismatch)', async () => {
@@ -1888,7 +1891,7 @@ describe('Routes - /api/v1/users', () => {
         });
       }
 
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(400);
     });
 
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token missing)', async () => {
@@ -1917,7 +1920,7 @@ describe('Routes - /api/v1/users', () => {
         });
       }
 
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(400);
     });
 
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token expired)', async () => {
@@ -1950,7 +1953,7 @@ describe('Routes - /api/v1/users', () => {
         });
       }
 
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(400);
     });
   });
 
@@ -2009,7 +2012,7 @@ describe('Routes - /api/v1/users', () => {
 
       res = await supertest(server).post('/api/v1/users/login').send({ email: newEmail, password: validUser.password });
 
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(400);
       expect(await User.findOne({ email: validUser.email })).toBeNull();
       expect(await User.findOne({ email: newEmail })).not.toBeNull();
     });
@@ -2441,9 +2444,11 @@ describe('Routes - /api/v1/users', () => {
 
     it('should successfully return user information for id if currently logged in user (JWT valid) is an admin (role) and CSRF token valid', async () => {
       res = await supertest(server)
-        .post(`/api/v1/users/getUser`)
+        .post(`/api/v1/users/user`)
         .set('Authorization', `Bearer ${jwt}`)
         .send({ userEmail: queryUser.email, token: csrf });
+
+      console.log(res);
 
       expect(res.status).toBe(200);
       expect(res.body.status).toMatch('success');
@@ -2452,7 +2457,7 @@ describe('Routes - /api/v1/users', () => {
 
     it('should reject if the req.params.email is not an email address associated with an account', async () => {
       res = await supertest(server)
-        .post(`/api/v1/users/getUser`)
+        .post(`/api/v1/users/user`)
         .set('Authorization', `Bearer ${jwt}`)
         .send({ userEmail: 'invalidEmail@test.io', token: csrf });
 
@@ -2474,7 +2479,7 @@ describe('Routes - /api/v1/users', () => {
         });
 
       res = await supertest(server)
-        .post(`/api/v1/users/getUser`)
+        .post(`/api/v1/users/user`)
         .set('Authorization', `Bearer ${jwt}`)
         .send({ userEmail: queryUser.email, token: csrf });
 
@@ -2491,7 +2496,7 @@ describe('Routes - /api/v1/users', () => {
         .send({ email: newEmail, emailConfirm: newEmail, password: validUser.password, token: csrf });
 
       res = await supertest(server)
-        .post(`/api/v1/users/getUser`)
+        .post(`/api/v1/users/user`)
         .set('Authorization', `Bearer ${jwt}`)
         .send({ userEmail: queryUser.email, token: csrf });
 
@@ -2502,7 +2507,7 @@ describe('Routes - /api/v1/users', () => {
 
     it('should reject if protect middleware not satisfied (JWT invalid)', async () => {
       res = await supertest(server)
-        .post(`/api/v1/users/getUser`)
+        .post(`/api/v1/users/user`)
         .set('Authorization', `Bearer invalidJWT`)
         .send({ userEmail: queryUser.email, token: csrf });
 
@@ -2511,7 +2516,7 @@ describe('Routes - /api/v1/users', () => {
     });
 
     it('should reject if protect middleware not satisfied (JWT missing)', async () => {
-      res = await supertest(server).post(`/api/v1/users/getUser`).send({ userEmail: queryUser.email, token: csrf });
+      res = await supertest(server).post(`/api/v1/users/user`).send({ userEmail: queryUser.email, token: csrf });
 
       expect(res.status).toBe(401);
       expect(res.body.data).not.toBeDefined();
@@ -2531,7 +2536,7 @@ describe('Routes - /api/v1/users', () => {
       process.env.JWT_EXPIRES_IN = actualJWTExpiration;
 
       res = await supertest(server)
-        .post(`/api/v1/users/getUser`)
+        .post(`/api/v1/users/user`)
         .set('Authorization', `Bearer ${jwt}`)
         .send({ userEmail: queryUser.email, token: csrf });
 
@@ -2542,7 +2547,7 @@ describe('Routes - /api/v1/users', () => {
 
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token mismatch)', async () => {
       res = await supertest(server)
-        .post(`/api/v1/users/getUser`)
+        .post(`/api/v1/users/user`)
         .set('Authorization', `Bearer ${jwt}`)
         .send({ userEmail: queryUser.email, token: 'invalidCSRF' });
 
@@ -2553,7 +2558,7 @@ describe('Routes - /api/v1/users', () => {
 
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token missing)', async () => {
       res = await supertest(server)
-        .post(`/api/v1/users/getUser`)
+        .post(`/api/v1/users/user`)
         .set('Authorization', `Bearer ${jwt}`)
         .send({ userEmail: queryUser.email });
 
@@ -2566,7 +2571,7 @@ describe('Routes - /api/v1/users', () => {
       await userObj.setCSRFTokenToExpired();
 
       res = await supertest(server)
-        .post(`/api/v1/users/getUser`)
+        .post(`/api/v1/users/user`)
         .set('Authorization', `Bearer ${jwt}`)
         .send({ userEmail: queryUser.email, token: csrf });
 
@@ -3359,6 +3364,7 @@ describe('Routes - /api/v1/users', () => {
       expect(res.status).toBe(401);
       expect(queryUser.active).toBe(false);
     });
+
     it('should reject if protect middleware not satisfied (Changed email)', async () => {
       const newEmail = 'newEmail@test.io';
       res = await supertest(server)
@@ -3376,6 +3382,7 @@ describe('Routes - /api/v1/users', () => {
       expect(res.status).toBe(401);
       expect(queryUser.active).toBe(false);
     });
+
     it('should reject if protect middleware not satisfied (JWT invalid)', async () => {
       res = await supertest(server)
         .post('/api/v1/users/reactivateUser')
@@ -3387,6 +3394,7 @@ describe('Routes - /api/v1/users', () => {
       expect(res.status).toBe(401);
       expect(queryUser.active).toBe(false);
     });
+
     it('should reject if protect middleware not satisfied (JWT missing)', async () => {
       res = await supertest(server)
         .post('/api/v1/users/reactivateUser')
@@ -3397,6 +3405,7 @@ describe('Routes - /api/v1/users', () => {
       expect(res.status).toBe(401);
       expect(queryUser.active).toBe(false);
     });
+
     it('should reject if protect middleware not satisfied (JWT expired)', async () => {
       const actualJWTExpiration = process.env.JWT_EXPIRES_IN;
       process.env.JWT_EXPIRES_IN = 0;
@@ -3419,6 +3428,7 @@ describe('Routes - /api/v1/users', () => {
       expect(res.status).toBe(401);
       expect(queryUser.active).toBe(false);
     });
+
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token mismatch)', async () => {
       res = await supertest(server)
         .post('/api/v1/users/reactivateUser')
@@ -3430,6 +3440,7 @@ describe('Routes - /api/v1/users', () => {
       expect(res.status).toBe(401);
       expect(queryUser.active).toBe(false);
     });
+
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token missing)', async () => {
       res = await supertest(server)
         .post('/api/v1/users/reactivateUser')
@@ -3441,6 +3452,7 @@ describe('Routes - /api/v1/users', () => {
       expect(res.status).toBe(401);
       expect(queryUser.active).toBe(false);
     });
+
     it('should reject if protect checkValidCSRFToken not satisfied (CSRF token expired)', async () => {
       await userObj.setCSRFTokenToExpired();
 

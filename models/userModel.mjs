@@ -24,6 +24,7 @@ const userSchema = new mongoose.Schema({
   emailConfirm: {
     type: String,
     required: [true, 'You must confirm your email address'],
+    lowercase: true,
     validate: {
       validator: function (value) {
         return value === this.email;

@@ -13,6 +13,7 @@ import {
   updateEmail,
   displayResetPasswordPage,
   checkForEmailPassword,
+  checkAndRefreshLogin,
 } from '../controllers/authController.mjs';
 import {
   getMe,
@@ -30,6 +31,7 @@ const router = express.Router();
 // Unprotected routes - no auth required
 router.post('/signup', signup);
 router.post('/login', login);
+router.get('/checkAndRefreshLogin', checkAndRefreshLogin);
 router.post('/forgotPassword', forgotPassword);
 router.get('/resetPassword/:token', displayResetPasswordPage);
 router.post('/resetPassword/:token', resetPassword);

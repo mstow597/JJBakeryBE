@@ -116,6 +116,5 @@ export const deleteProduct = catchAsync(async (req, res, next) => {
 
   if (!deletedProduct) return next(new AppError('Product with that name does not exist.', 400));
 
-  console.log(deletedProduct);
   res.status(200).json({ status: 'success', message: 'Successfully removed product from database.' });
 });
