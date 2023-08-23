@@ -1,6 +1,6 @@
-import { User } from '../models/userModel.mjs';
-import { AppError } from '../utils/appError.mjs';
-import { catchAsync } from '../utils/catchAsync.mjs';
+import { User } from "../models/userModel.mjs";
+import { AppError } from "../utils/appError.mjs";
+import { catchAsync } from "../utils/catchAsync.mjs";
 
 const filterObj = (obj, ...allowedFields) => {
   let newObject = {};
@@ -16,34 +16,57 @@ const filterObj = (obj, ...allowedFields) => {
 
 export const getMe = (req, res, next) => {
   const { name, phone, email } = req.user;
-  res.status(200).json({ status: 'success', data: { name, phone, email } });
+  res.status(200).json({ status: "success", data: { name, phone, email } });
 };
 
 export const updateMe = catchAsync(async (req, res, next) => {
-  const user = await User.findByIdAndUpdate(req.user._id, filterObj(req.body, 'name', 'phone'), {
-    new: true,
-    runValidators: true,
-  });
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    filterObj(req.body, "name", "phone"),
+    {
+      new: true,
+      runValidators: true,
+    },
+  );
 
-  if (!user) return next(new AppError('Unable to update your account. Please log back in and try again.', 400));
+  if (!user)
+    return next(
+      new AppError(
+        "Unable to update your account. Please log back in and try again.",
+        400,
+      ),
+    );
 
-  res.status(200).json({ status: 'success', data: { user } });
+  res.status(200).json({ status: "success", data: { user } });
 });
 
 export const deleteMe = catchAsync(async (req, res, next) => {
-  const user = await User.findByIdAndUpdate(req.user._id, { active: false, csrfTokenExpires: new Date(0) });
+  const user = await User.findByIdAndUpdate(req.user._id, {
+    active: false,
+    csrfTokenExpires: new Date(0),
+  });
 
-  if (!user) return next(new AppError('Unable to inactivate your account. Please log back in and try again.'));
+  if (!user)
+    return next(
+      new AppError(
+        "Unable to inactivate your account. Please log back in and try again.",
+      ),
+    );
 
   const cookieOptions = {
     expires: new Date(0),
     httpOnly: true,
   };
 
-  if (process.env.NODE_ENV === 'production') cookieOptions.secure = true;
-  res.cookie('jwt', '', cookieOptions);
-  res.cookie('csrf', '', cookieOptions);
-  res.status(200).json({ status: 'success', message: 'Successfully inactivated your account.' });
+  if (process.env.NODE_ENV === "production") cookieOptions.secure = true;
+  res.cookie("jwt", "", cookieOptions);
+  res.cookie("csrf", "", cookieOptions);
+  res
+    .status(200)
+    .json({
+      status: "success",
+      message: "Successfully inactivated your account.",
+    });
 });
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -53,39 +76,59 @@ export const deleteMe = catchAsync(async (req, res, next) => {
 export const getAllUsers = catchAsync(async (req, res, next) => {
   const users = await User.find();
 
-  res.status(200).json({ status: 'success', numUsers: users.length, data: { data: users } });
+  res
+    .status(200)
+    .json({ status: "success", numUsers: users.length, data: { data: users } });
 });
 
 export const getUser = catchAsync(async (req, res, next) => {
   const user = await User.findOne({ email: req.body.userEmail });
 
-  if (!user) return next(new AppError('No user found for the email provided.', 404));
+  if (!user)
+    return next(new AppError("No user found for the email provided.", 404));
 
-  res.status(200).json({ status: 'success', data: { data: user } });
+  res.status(200).json({ status: "success", data: { data: user } });
 });
 
 export const updateUser = catchAsync(async (req, res, next) => {
-  const user = await User.findOneAndUpdate({ email: req.body.userEmail }, filterObj(req.body, 'name', 'phone'), {
-    new: true,
-    runValidators: true,
-  });
-  if (!user) return next(new AppError('No user found for the email provided.', 404));
+  const user = await User.findOneAndUpdate(
+    { email: req.body.userEmail },
+    filterObj(req.body, "name", "phone"),
+    {
+      new: true,
+      runValidators: true,
+    },
+  );
+  if (!user)
+    return next(new AppError("No user found for the email provided.", 404));
 
-  res.status(200).json({ status: 'success', data: { data: user } });
+  res.status(200).json({ status: "success", data: { data: user } });
 });
 
 export const deleteUser = catchAsync(async (req, res, next) => {
-  const user = await User.findOneAndUpdate({ email: req.body.userEmail }, { active: false });
+  const user = await User.findOneAndUpdate(
+    { email: req.body.userEmail },
+    { active: false },
+  );
 
-  if (!user) return next(new AppError('No user found for the email provided.', 404));
+  if (!user)
+    return next(new AppError("No user found for the email provided.", 404));
 
-  res.status(200).json({ status: 'success', message: 'Successfully inactivated account.' });
+  res
+    .status(200)
+    .json({ status: "success", message: "Successfully inactivated account." });
 });
 
 export const reactivateUser = catchAsync(async (req, res, next) => {
-  const user = await User.findOneAndUpdate({ email: req.body.userEmail }, { active: true });
+  const user = await User.findOneAndUpdate(
+    { email: req.body.userEmail },
+    { active: true },
+  );
 
-  if (!user) return next(new AppError('No user found for the email provided.', 404));
+  if (!user)
+    return next(new AppError("No user found for the email provided.", 404));
 
-  res.status(200).json({ status: 'success', message: 'Successfully reactivated account.' });
+  res
+    .status(200)
+    .json({ status: "success", message: "Successfully reactivated account." });
 });

@@ -10,7 +10,8 @@ const filterUpdate = (object) => {
   const allowedFields = [
     'name',
     'category',
-    'quantityPerOrder',
+    'caloriesPerServing',
+    'servingsPerOrder',
     'pricePerOrder',
     'imageSrc',
     'imageAlt',
@@ -27,19 +28,24 @@ const filterUpdate = (object) => {
   return filteredObj;
 };
 
+// export const getProducts = catchAsync(async (req, res, next) => {
+//   let { nextCursor = minMongoId, limit = 10 } = req.params;
+
+//   if (isNaN(limit) || !mongoose.isValidObjectId(nextCursor)) return next(new AppError('Invalid page number and/or cursor value', 400));
+
+//   const products = await Product.find({ _id: { $gte: nextCursor } }).limit(limit + 1);
+
+//   if (!(products.length <= limit)) {
+//     nextCursor = products[limit]._id;
+//     products.length = limit; // alternative to slice(...) -- removing last element
+//   }
+//   res.status(200).json({ status: 'success', data: { nextCursor, limit, products } });
+// });
+
 export const getProducts = catchAsync(async (req, res, next) => {
-  let { nextCursor = minMongoId, limit = 10 } = req.params;
+  const products = await Product.find({});
 
-  if (isNaN(limit) || !mongoose.isValidObjectId(nextCursor))
-    return next(new AppError('Invalid page number and/or cursor value', 400));
-
-  const products = await Product.find({ _id: { $gte: nextCursor } }).limit(limit + 1);
-
-  if (!(products.length < limit)) {
-    nextCursor = products[limit]._id;
-    products.length = limit; // alternative to slice(...) -- removing last element
-  }
-  res.status(200).json({ status: 'success', data: { nextCursor, limit, products } });
+  res.status(200).json({ status: 'success', data: { products } });
 });
 
 export const getProductNames = catchAsync(async (req, res, next) => {
@@ -59,8 +65,7 @@ export const getProduct = catchAsync(async (req, res, next) => {
 export const getProductsByCategories = catchAsync(async (req, res, next) => {
   let { nextCursor = minMongoId, limit = 10 } = req.params;
 
-  if (isNaN(limit) || !mongoose.isValidObjectId(nextCursor))
-    return next(new AppError('Invalid page number and/or cursor value', 400));
+  if (isNaN(limit) || !mongoose.isValidObjectId(nextCursor)) return next(new AppError('Invalid page number and/or cursor value', 400));
 
   const query = {};
   const allowedCategories = ['bread', 'muffin', 'cookie', 'brownie', 'cake', 'pie', 'pastry'];
@@ -89,7 +94,8 @@ export const addNewProduct = catchAsync(async (req, res, next) => {
   const product = await Product.create({
     name: req.body.name,
     category: req.body.category,
-    quantityPerOrder: req.body.quantityPerOrder,
+    caloriesPerServing: req.body.caloriesPerServing,
+    servingsPerOrder: req.body.servingsPerOrder,
     pricePerOrder: req.body.pricePerOrder,
     imageSrc: req.body.imageSrc,
     imageAlt: req.body.imageAlt,

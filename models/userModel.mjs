@@ -10,7 +10,7 @@ const userSchema = new mongoose.Schema({
     required: [true, 'User must have a name.'],
     validate: {
       validator: function (value) {
-        return validator.isAlpha(value.replace(/\s/g, ''));
+        return validator.isAscii(value.replace(/\s/g, ''));
       },
     },
   },
@@ -38,7 +38,7 @@ const userSchema = new mongoose.Schema({
     required: [true, 'User must have phone number'],
     validate: {
       validator: function (value) {
-        return value.match(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/im);
+        return value.match(/^\+?\d{1,4}?[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?$/);
       },
     },
   },
@@ -49,7 +49,7 @@ const userSchema = new mongoose.Schema({
     select: false,
     validate: {
       validator: function (value) {
-        return validator.isStrongPassword(value, { returnScore: true }) >= 40;
+        return validator.isStrongPassword(value);
       },
     },
   },

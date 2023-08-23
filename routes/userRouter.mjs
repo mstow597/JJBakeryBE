@@ -14,24 +14,17 @@ import {
   displayResetPasswordPage,
   checkForEmailPassword,
   checkAndRefreshLogin,
+  logout,
 } from '../controllers/authController.mjs';
-import {
-  getMe,
-  updateMe,
-  deleteMe,
-  deleteUser,
-  getAllUsers,
-  getUser,
-  updateUser,
-  reactivateUser,
-} from '../controllers/userController.mjs';
+import { getMe, updateMe, deleteMe, deleteUser, getAllUsers, getUser, updateUser, reactivateUser } from '../controllers/userController.mjs';
 
 const router = express.Router();
 
 // Unprotected routes - no auth required
 router.post('/signup', signup);
 router.post('/login', login);
-router.get('/checkAndRefreshLogin', checkAndRefreshLogin);
+router.get('/logout', logout);
+router.post('/checkAndRefreshLogin', protect, checkValidCSRFToken, checkAndRefreshLogin);
 router.post('/forgotPassword', forgotPassword);
 router.get('/resetPassword/:token', displayResetPasswordPage);
 router.post('/resetPassword/:token', resetPassword);

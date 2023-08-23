@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import nodemailer from "nodemailer";
 
 export const sendEmail = async (options) => {
   // 1) Create a transporter - service that will send the email like gmail.
@@ -14,7 +14,7 @@ export const sendEmail = async (options) => {
 
   // 2) Define the email options
   const mailOptions = {
-    from: `J's Bakery <dummy@dummy.io>`,
+    from: `JJ's Bakery <dummy@dummy.io>`,
     to: options.email,
     subject: options.subject,
     text: options.message,
@@ -22,5 +22,9 @@ export const sendEmail = async (options) => {
   };
 
   // 3) Send the email with nodemailer
-  await transporter.sendMail(mailOptions);
+  try {
+    await transporter.sendMail(mailOptions);
+  } catch (err) {
+    console.log(err);
+  }
 };
