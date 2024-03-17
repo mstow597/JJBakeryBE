@@ -19,7 +19,8 @@ process.on("unhandledRejection", (err) => {
   });
 });
 
-const DB = process.env.DATABASE.replace("<PASSWORD>", process.env.DATABASE_PASSWORD);
+// const DB = process.env.DATABASE.replace("<PASSWORD>", process.env.DATABASE_PASSWORD);
+const DB = process.env.DATABASE_LOCAL;
 
 await mongoose.connect(DB).then((conn) => {
   console.log("DB connection successful!");

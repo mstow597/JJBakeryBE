@@ -45,6 +45,7 @@ export const submitOrderUser = catchAsync(async (req, res, next) => {
 
     const subtotal = +submittedOrder.products
       .reduce((accumulator, product) => {
+        console.log(product);
         const matchingProduct = products.find((item) => item._id.equals(product._id));
         return accumulator + matchingProduct.pricePerOrder * product.quantity;
       }, 0)
@@ -56,7 +57,10 @@ export const submitOrderUser = catchAsync(async (req, res, next) => {
 
     submittedOrder.subtotal = subtotal;
     submittedOrder.taxes = taxes;
+    submittedOrder.orderName = orderName;
+    submittedOrder.phoneNumber = phone;
     submittedOrder.purchasePrice = purchasePrice;
+    submittedOrder.purchaseDate = new Date();
     await submittedOrder.save();
 
     res.status(200).json({ status: "success", data: { submittedOrder } });
@@ -67,12 +71,17 @@ export const submitOrderGuest = catchAsync(async (req, res, next) => {
   setTimeout(async () => {
     const { orderedProducts, orderName, phone, zip } = req.body;
 
+    console.log(orderedProducts, orderName, phone, zip);
+
     if (!products || !orderName || !phone)
       return next(new AppError("Missing one or more of the following: products, order name, phone number.", 400));
 
     const nameIsValid = validateName(orderName);
     const phoneIsValid = validatePhone(phone);
     const zipIsValid = zip ? validateZip(zip) : undefined;
+
+    console.log(phoneIsValid);
+    console.log(phone);
 
     if (zip && (!nameIsValid || !phoneIsValid || !zipIsValid))
       return next(new AppError("One or more of the following is/are invalid: name, phone, zip.", 400));

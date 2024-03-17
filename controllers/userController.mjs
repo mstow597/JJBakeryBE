@@ -19,54 +19,65 @@ export const getMe = (req, res, next) => {
   res.status(200).json({ status: "success", data: { name, phone, email } });
 };
 
-export const updateMe = catchAsync(async (req, res, next) => {
-  const user = await User.findByIdAndUpdate(
-    req.user._id,
-    filterObj(req.body, "name", "phone"),
-    {
-      new: true,
-      runValidators: true,
-    },
-  );
+export const updateName = catchAsync(async (req, res, next) => {
+  if (!req.body.name) return next(new AppError("Name missing or invalid. Please try again.", 401));
 
-  if (!user)
-    return next(
-      new AppError(
-        "Unable to update your account. Please log back in and try again.",
-        400,
-      ),
-    );
+  setTimeout(async () => {
+    try {
+      let user = await User.findByIdAndUpdate(req.user._id, filterObj(req.body, "name"), {
+        new: true,
+        runValidators: true,
+      });
 
-  res.status(200).json({ status: "success", data: { user } });
+      if (!user) return next(new AppError("Unable to update your account. Please log back in and try again.", 400));
+
+      user = {
+        userName: user.name,
+        userEmail: user.email,
+        userPhone: user.phone,
+      };
+
+      res.status(200).json({ status: "success", data: { user } });
+    } catch (err) {
+      console.log(err);
+      res
+        .status(401)
+        .json({
+          status: "failed",
+          message:
+            "Unable to update your account user name. Please try again with valid user name [a-zA-Z, Some Punctuation Allowed].",
+        });
+    }
+  }, 2000);
 });
 
-export const deleteMe = catchAsync(async (req, res, next) => {
-  const user = await User.findByIdAndUpdate(req.user._id, {
-    active: false,
-    csrfTokenExpires: new Date(0),
-  });
+export const updatePhone = catchAsync(async (req, res, next) => {
+  if (!req.body.phone) return next(new AppError("Phone number missing or invalid. Please try again.", 401));
 
-  if (!user)
-    return next(
-      new AppError(
-        "Unable to inactivate your account. Please log back in and try again.",
-      ),
-    );
+  setTimeout(async () => {
+    try {
+      let user = await User.findByIdAndUpdate(req.user._id, filterObj(req.body, "phone"), {
+        new: true,
+        runValidators: true,
+      });
 
-  const cookieOptions = {
-    expires: new Date(0),
-    httpOnly: true,
-  };
+      if (!user) return next(new AppError("Unable to update your account. Please log back in and try again.", 400));
 
-  if (process.env.NODE_ENV === "production") cookieOptions.secure = true;
-  res.cookie("jwt", "", cookieOptions);
-  res.cookie("csrf", "", cookieOptions);
-  res
-    .status(200)
-    .json({
-      status: "success",
-      message: "Successfully inactivated your account.",
-    });
+      user = {
+        userName: user.name,
+        userEmail: user.email,
+        userPhone: user.phone,
+      };
+
+      res.status(200).json({ status: "success", data: { user } });
+    } catch (err) {
+      console.log(err);
+      res.status(401).json({
+        status: "failed",
+        message: "Unable to update phone number. Please try again with valid phone number (xxx-xxx-xxxx).",
+      });
+    }
+  }, 2000);
 });
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -76,59 +87,49 @@ export const deleteMe = catchAsync(async (req, res, next) => {
 export const getAllUsers = catchAsync(async (req, res, next) => {
   const users = await User.find();
 
-  res
-    .status(200)
-    .json({ status: "success", numUsers: users.length, data: { data: users } });
+  res.status(200).json({ status: "success", numUsers: users.length, data: { data: users } });
 });
 
 export const getUser = catchAsync(async (req, res, next) => {
-  const user = await User.findOne({ email: req.body.userEmail });
+  let user = await User.findOne({ email: req.body.userEmail });
 
-  if (!user)
-    return next(new AppError("No user found for the email provided.", 404));
+  if (!user) return next(new AppError("No user found for the email provided.", 404));
 
   res.status(200).json({ status: "success", data: { data: user } });
 });
 
-export const updateUser = catchAsync(async (req, res, next) => {
-  const user = await User.findOneAndUpdate(
-    { email: req.body.userEmail },
-    filterObj(req.body, "name", "phone"),
-    {
-      new: true,
-      runValidators: true,
-    },
-  );
-  if (!user)
-    return next(new AppError("No user found for the email provided.", 404));
+export const updateNameAdmin = catchAsync(async (req, res, next) => {
+  const user = await User.findOneAndUpdate({ email: req.body.userEmail }, filterObj(req.body, "name"), {
+    new: true,
+    runValidators: true,
+  });
+  if (!user) return next(new AppError("No user found for the email provided.", 404));
+
+  res.status(200).json({ status: "success", data: { data: user } });
+});
+
+export const updatePhoneAdmin = catchAsync(async (req, res, next) => {
+  const user = await User.findOneAndUpdate({ email: req.body.userEmail }, filterObj(req.body, "phone"), {
+    new: true,
+    runValidators: true,
+  });
+  if (!user) return next(new AppError("No user found for the email provided.", 404));
 
   res.status(200).json({ status: "success", data: { data: user } });
 });
 
 export const deleteUser = catchAsync(async (req, res, next) => {
-  const user = await User.findOneAndUpdate(
-    { email: req.body.userEmail },
-    { active: false },
-  );
+  const user = await User.findOneAndUpdate({ email: req.body.userEmail }, { active: false });
 
-  if (!user)
-    return next(new AppError("No user found for the email provided.", 404));
+  if (!user) return next(new AppError("No user found for the email provided.", 404));
 
-  res
-    .status(200)
-    .json({ status: "success", message: "Successfully inactivated account." });
+  res.status(200).json({ status: "success", message: "Successfully inactivated account." });
 });
 
 export const reactivateUser = catchAsync(async (req, res, next) => {
-  const user = await User.findOneAndUpdate(
-    { email: req.body.userEmail },
-    { active: true },
-  );
+  const user = await User.findOneAndUpdate({ email: req.body.userEmail }, { active: true });
 
-  if (!user)
-    return next(new AppError("No user found for the email provided.", 404));
+  if (!user) return next(new AppError("No user found for the email provided.", 404));
 
-  res
-    .status(200)
-    .json({ status: "success", message: "Successfully reactivated account." });
+  res.status(200).json({ status: "success", message: "Successfully reactivated account." });
 });
